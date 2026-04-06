@@ -2,9 +2,15 @@ import type { Plugin } from "@opencode-ai/plugin"
 
 import type { OhMyCCAgentConfig } from "../config/schema"
 
+import { createChatMessageHook, recordToolCall } from "../hooks/chat-message"
+import { createChatParamsHook } from "../hooks/chat-params"
+import { createCompactionHook } from "../hooks/compaction"
 import { createConfigHook } from "../hooks/config-handler"
+import { createDynamicSystemPrompt } from "../hooks/dynamic-system-prompt"
 import { createEnvironmentContext } from "../hooks/environment-context"
+import { createMessageTransformHook } from "../hooks/message-transform"
 import { createRiskGuard } from "../hooks/risk-guard"
+import { createToolDefinitionHook } from "../hooks/tool-definition"
 import { createVerificationReminder } from "../hooks/verification-reminder"
 import { createAgentTools } from "./tool-registry"
 
@@ -13,7 +19,17 @@ type PluginInstance = Awaited<ReturnType<Plugin>>
 
 export type PluginInterface = Pick<
   PluginInstance,
-  "config" | "tool" | "tool.execute.before" | "tool.execute.after" | "event"
+  | "config"
+  | "tool"
+  | "tool.execute.before"
+  | "tool.execute.after"
+  | "event"
+  | "chat.message"
+  | "chat.params"
+  | "tool.definition"
+  | "experimental.chat.system.transform"
+  | "experimental.chat.messages.transform"
+  | "experimental.session.compacting"
 >
 
 export function createPluginInterface(args: {
@@ -26,14 +42,45 @@ export function createPluginInterface(args: {
   const riskGuard = createRiskGuard()
   const verificationReminder = createVerificationReminder(config)
   const environmentContext = createEnvironmentContext(ctx.directory)
+  const dynamicSystemPrompt = createDynamicSystemPrompt(config, ctx.directory)
+  const chatMessageHook = createChatMessageHook(config)
+  const chatParamsHook = createChatParamsHook()
+  const compactionHook = createCompactionHook()
+  const toolDefinitionHook = createToolDefinitionHook()
+  const messageTransformHook = createMessageTransformHook()
 
   return {
     config: configHook,
     tool: createAgentTools(),
+
     "tool.execute.before": riskGuard,
-    "tool.execute.after": verificationReminder,
+
+    "tool.execute.after": async (input, output) => {
+      await verificationReminder(input, output)
+
+      const sessionID = typeof input.sessionID === "string" ? input.sessionID : undefined
+      const tool = typeof input.tool === "string" ? input.tool.toLowerCase() : undefined
+      if (sessionID && tool) {
+        const args = input.args as Record<string, unknown> | undefined
+        const file =
+          typeof args?.filePath === "string"
+            ? args.filePath
+            : typeof args?.path === "string"
+              ? args.path
+              : undefined
+        recordToolCall(sessionID, tool, file)
+      }
+    },
+
     event: async (input) => {
       await environmentContext(input, {})
     },
+
+    "chat.message": chatMessageHook,
+    "chat.params": chatParamsHook,
+    "tool.definition": toolDefinitionHook,
+    "experimental.chat.system.transform": dynamicSystemPrompt,
+    "experimental.chat.messages.transform": messageTransformHook,
+    "experimental.session.compacting": compactionHook,
   }
 }
