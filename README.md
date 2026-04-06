@@ -90,7 +90,7 @@ graph TD
     User([User Request]) --> OP[OpenCode Agent Loop]
     
     subgraph ccx Plugin
-        H1[chat.message] -.->|Inject Verification Reminders| OP
+        H1[chat.message] -.->|Track File Edits| OP
         H2[chat.system.transform] -.->|Load CLAUDE.md & Context| OP
         H3[chat.params] -.->|Agent-specific Temp/TopP| OP
         
@@ -102,7 +102,7 @@ graph TD
         ToolCall -->|Execute| Exec[Run Tool]
         
         Exec -->|After| H5[tool.execute.after]
-        H5 -.->|Track Edits & Remind| OP
+        H5 -.->|Track Edits| OP
         
         OP -->|Context Full| H6[session.compacting]
         H6 -.->|Preserve Plan & Verdict| OP
@@ -149,7 +149,7 @@ ccx uses every major hook point in the OpenCode plugin API to dynamically shape 
 
 | Hook | What it does |
 |------|-------------|
-| **chat.message** | Injects `<system-reminder>` with verification contract, edit tracking |
+| **chat.message** | Tracks file edits across the session for verification threshold detection |
 | **chat.params** | Tunes temperature/topP per agent — low for plan/verification (precision), higher for explore (creativity) |
 | **experimental.chat.system.transform** | Dynamically injects project instructions (CLAUDE.md), session context (edited files list), and verification reminders into the system prompt |
 | **tool.definition** | Appends safety rules to bash/edit/write tool descriptions, usage hints to glob/grep/read |
@@ -175,9 +175,8 @@ ccx was built by studying Claude Code's prompt architecture and adapting its cor
 |--------------------|--------------------|
 | 8-section system prompt | 8 composable prompt sections, near-identical content |
 | 5 subagent types (explore, plan, verify, general, coordinator) | Same 5 agents with equivalent prompts |
-| Verification contract (3+ file edits → mandatory review) | Dynamic system prompt injection + chat.message reminders |
+| Verification contract (3+ file edits → mandatory review) | Dynamic system prompt injection |
 | VERDICT protocol (PASS/FAIL/PARTIAL) | Identical format and adversarial strategies |
-| Per-turn `<system-reminder>` attachments | `chat.message` hook injects context each turn |
 | Project instructions (CLAUDE.md) | Auto-loaded from CLAUDE.md / .claude/instructions.md / AGENTS.md |
 | Tool safety hints | `tool.definition` hook appends rules to bash/edit/write descriptions |
 | Context compaction preservation | Custom compaction prompt via `experimental.session.compacting` |
