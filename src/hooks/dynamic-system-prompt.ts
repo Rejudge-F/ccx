@@ -1,34 +1,9 @@
 import type { OhMyCCAgentConfig } from "../config/schema"
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
-
-type SessionDynamicState = {
-  editedFiles: Set<string>
-  verificationTriggered: boolean
-  turnCount: number
-}
-
-const sessionStates = new Map<string, SessionDynamicState>()
-
-function getState(sessionID: string): SessionDynamicState {
-  const existing = sessionStates.get(sessionID)
-  if (existing) return existing
-  const state: SessionDynamicState = {
-    editedFiles: new Set(),
-    verificationTriggered: false,
-    turnCount: 0,
-  }
-  sessionStates.set(sessionID, state)
-  return state
-}
-
-export function trackFileEdit(sessionID: string, filePath: string) {
-  getState(sessionID).editedFiles.add(filePath)
-}
-
-export function markVerificationTriggered(sessionID: string) {
-  getState(sessionID).verificationTriggered = true
-}
+import { getGitSnapshotSection } from "./git-context"
+import { getVerificationState, listEditedFiles, requiresVerification } from "./verification-reminder"
+import { createPromptSection, resolvePromptSections } from "../prompts/section-registry"
 
 function loadProjectInstructions(directory: string): string | null {
   const candidates = ["CLAUDE.md", ".claude/instructions.md", "AGENTS.md"]
@@ -57,26 +32,58 @@ export function createDynamicSystemPrompt(config: OhMyCCAgentConfig, directory: 
 
     const sessionID = input.sessionID
 
-    if (projectInstructions) {
-      output.system.push(`# Project Instructions\n\nThe following instructions were found in the project root and MUST be followed:\n\n${projectInstructions}`)
-    }
+    const sections = [
+      createPromptSection({
+        id: "project-instructions",
+        kind: "dynamic",
+        resolve: () => {
+          if (!projectInstructions) return null
+          return `# Project Instructions\n\nThe following instructions were found in the project root and MUST be followed:\n\n${projectInstructions}`
+        },
+      }),
+      createPromptSection({
+        id: "git-context",
+        kind: "dynamic",
+        resolve: () => {
+          if (!sessionID) return null
+          return getGitSnapshotSection(sessionID)
+        },
+      }),
+      createPromptSection({
+        id: "session-context",
+        kind: "dynamic",
+        resolve: () => {
+          if (!sessionID) return null
+          const { editedFilesCount } = getVerificationState(sessionID)
+          if (editedFilesCount === 0) return null
+          const editedFiles = listEditedFiles(sessionID, 20)
+          const suffix = editedFilesCount > editedFiles.length
+            ? `, ... and ${editedFilesCount - editedFiles.length} more`
+            : ""
+          return `# Session Context\n\nFiles edited in this session (${editedFilesCount} total): ${editedFiles.join(", ")}${suffix}`
+        },
+      }),
+      createPromptSection({
+        id: "verification-reminder",
+        kind: "dynamic",
+        resolve: () => {
+          if (!sessionID) return null
+          if (!config.verification.auto_remind) return null
+          if (!requiresVerification(sessionID, config.verification.min_file_edits)) {
+            return null
+          }
+          const { editedFilesCount } = getVerificationState(sessionID)
+          return `# Verification Reminder\n\nYou have edited ${editedFilesCount} files in this session. You MUST run verification (via ccx-verification subagent) before declaring the task complete. This is not optional.`
+        },
+      }),
+    ]
 
-    if (sessionID) {
-      const state = getState(sessionID)
-      state.turnCount++
+    const dynamicSections = await resolvePromptSections({
+      sections,
+      kind: "dynamic",
+      disabledSectionIDs: config.disabled_sections,
+    })
 
-      if (state.editedFiles.size > 0) {
-        const fileList = [...state.editedFiles].slice(-20).join(", ")
-        output.system.push(`# Session Context\n\nFiles edited in this session (${state.editedFiles.size} total): ${fileList}`)
-      }
-
-      if (
-        config.verification.auto_remind &&
-        state.editedFiles.size >= config.verification.min_file_edits &&
-        !state.verificationTriggered
-      ) {
-        output.system.push(`# Verification Reminder\n\nYou have edited ${state.editedFiles.size} files in this session. You MUST run verification (via ccx-verification subagent) before declaring the task complete. This is not optional.`)
-      }
-    }
+    output.system.push(...dynamicSections)
   }
 }

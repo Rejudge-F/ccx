@@ -70,7 +70,7 @@ export function createConfigHook(config: OhMyCCAgentConfig, directory: string) {
 
     const existingAgents = (input.agent as Record<string, unknown>) ?? {}
 
-    const systemSections = composeSystemPrompt({
+    const systemSections = await composeSystemPrompt({
       toolNames: { bash: "Bash", read: "Read", edit: "Edit", write: "Write", glob: "Glob", grep: "Grep" },
       env: {
         cwd: directory,
@@ -79,6 +79,7 @@ export function createConfigHook(config: OhMyCCAgentConfig, directory: string) {
         shell: process.env.SHELL ?? "unknown",
       },
       outputStyle: config.output_style ?? undefined,
+      disabledSectionIDs: config.disabled_sections,
     })
 
     const subagentGuidance = buildSubagentGuidance()

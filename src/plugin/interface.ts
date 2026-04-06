@@ -2,12 +2,13 @@ import type { Plugin } from "@opencode-ai/plugin"
 
 import type { OhMyCCAgentConfig } from "../config/schema"
 
-import { createChatMessageHook, recordToolCall } from "../hooks/chat-message"
+import { createChatMessageHook } from "../hooks/chat-message"
 import { createChatParamsHook } from "../hooks/chat-params"
 import { createCompactionHook } from "../hooks/compaction"
 import { createConfigHook } from "../hooks/config-handler"
 import { createDynamicSystemPrompt } from "../hooks/dynamic-system-prompt"
 import { createEnvironmentContext } from "../hooks/environment-context"
+import { createGitContextHook } from "../hooks/git-context"
 import { createIdleCompactionHook, recordSessionTurn } from "../hooks/idle-compaction"
 import { createMessageTransformHook } from "../hooks/message-transform"
 import { createRiskGuard } from "../hooks/risk-guard"
@@ -43,6 +44,7 @@ export function createPluginInterface(args: {
   const riskGuard = createRiskGuard()
   const verificationReminder = createVerificationReminder(config)
   const environmentContext = createEnvironmentContext(ctx.directory)
+  const gitContext = createGitContextHook(ctx.directory)
   const dynamicSystemPrompt = createDynamicSystemPrompt(config, ctx.directory)
   const chatMessageHook = createChatMessageHook(config)
   const chatParamsHook = createChatParamsHook()
@@ -59,23 +61,11 @@ export function createPluginInterface(args: {
 
     "tool.execute.after": async (input, output) => {
       await verificationReminder(input, output)
-
-      const sessionID = typeof input.sessionID === "string" ? input.sessionID : undefined
-      const tool = typeof input.tool === "string" ? input.tool.toLowerCase() : undefined
-      if (sessionID && tool) {
-        const args = input.args as Record<string, unknown> | undefined
-        const file =
-          typeof args?.filePath === "string"
-            ? args.filePath
-            : typeof args?.path === "string"
-              ? args.path
-              : undefined
-        recordToolCall(sessionID, tool, file)
-      }
     },
 
     event: async (input) => {
       await environmentContext(input, {})
+      await gitContext(input, {})
       const rawEvent = (input as Record<string, unknown>).event as Record<string, unknown> | undefined
       if (rawEvent) {
         await idleCompaction.onEvent(rawEvent as { type: string; properties?: { sessionID?: string } })

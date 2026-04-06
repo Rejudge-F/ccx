@@ -12,22 +12,77 @@ import {
   getUsingToolsSection,
   type ToolSectionNames as ToolNames,
 } from './using-tools.js'
+import { createPromptSection, resolvePromptSections } from './section-registry.js'
+
+const DISABLED_SECTION_ALIASES: Record<string, string> = {
+  'system-rules': 'system',
+  doing_tasks: 'doing-tasks',
+  using_tools: 'using-tools',
+  'tone-style': 'tone-style',
+  tone_style: 'tone-style',
+  'output-efficiency': 'output-efficiency',
+  output_efficiency: 'output-efficiency',
+}
+
+function normalizeDisabledSectionIDs(ids: string[] | undefined): string[] {
+  if (!ids || ids.length === 0) return []
+  return ids.map(id => DISABLED_SECTION_ALIASES[id] ?? id)
+}
 
 export type { EnvInfo, ToolNames }
 
-export function composeSystemPrompt(options: {
+export async function composeSystemPrompt(options: {
   toolNames: ToolNames
   env: EnvInfo
   outputStyle?: string
-}): string[] {
-  return [
-    getIntroSection(options.outputStyle),
-    getSystemRulesSection(),
-    getDoingTasksSection(),
-    getActionsSection(),
-    getUsingToolsSection(options.toolNames),
-    getToneStyleSection(),
-    getOutputEfficiencySection(),
-    getEnvironmentSection(options.env),
+  disabledSectionIDs?: string[]
+}): Promise<string[]> {
+  const sections = [
+    createPromptSection({
+      id: 'intro',
+      kind: 'static',
+      resolve: () => getIntroSection(options.outputStyle),
+    }),
+    createPromptSection({
+      id: 'system',
+      kind: 'static',
+      resolve: () => getSystemRulesSection(),
+    }),
+    createPromptSection({
+      id: 'doing-tasks',
+      kind: 'static',
+      resolve: () => getDoingTasksSection(),
+    }),
+    createPromptSection({
+      id: 'actions',
+      kind: 'static',
+      resolve: () => getActionsSection(),
+    }),
+    createPromptSection({
+      id: 'using-tools',
+      kind: 'static',
+      resolve: () => getUsingToolsSection(options.toolNames),
+    }),
+    createPromptSection({
+      id: 'tone-style',
+      kind: 'static',
+      resolve: () => getToneStyleSection(),
+    }),
+    createPromptSection({
+      id: 'output-efficiency',
+      kind: 'static',
+      resolve: () => getOutputEfficiencySection(),
+    }),
+    createPromptSection({
+      id: 'environment',
+      kind: 'static',
+      resolve: () => getEnvironmentSection(options.env),
+    }),
   ]
+
+  return resolvePromptSections({
+    sections,
+    kind: 'static',
+    disabledSectionIDs: normalizeDisabledSectionIDs(options.disabledSectionIDs),
+  })
 }
