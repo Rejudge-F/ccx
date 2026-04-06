@@ -14,11 +14,11 @@ type ChatParamsOutput = {
 }
 
 const AGENT_PARAMS: Record<string, Partial<ChatParamsOutput>> = {
-  "ccx-plan": { temperature: 0.3, topP: 0.9 },
-  "ccx-verification": { temperature: 0.2, topP: 0.85 },
-  "ccx-explore": { temperature: 0.5, topP: 0.95 },
-  "ccx-coordinator": { temperature: 0.4, topP: 0.9 },
-  "ccx-general-purpose": { temperature: 0.5, topP: 0.95 },
+  "ccx-plan": { temperature: 0.3 },
+  "ccx-verification": { temperature: 0.2 },
+  "ccx-explore": { temperature: 0.5 },
+  "ccx-coordinator": { temperature: 0.4 },
+  "ccx-general-purpose": { temperature: 0.5 },
 }
 
 export function createChatParamsHook() {
