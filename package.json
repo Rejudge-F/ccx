@@ -1,6 +1,6 @@
 {
   "name": "@ccx-agent/opencode-ccx",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Production-grade prompt engineering for OpenCode — disciplined coding, risk-aware actions, adversarial verification",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -19,6 +19,10 @@
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "bun run clean && bun run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Rejudge-F/ccx.git"
   },
   "keywords": [
     "opencode",
