@@ -59,6 +59,8 @@ export function createChatMessageHook(config: OhMyCCAgentConfig) {
       output.parts.push({
         type: "text",
         text: reminders.join("\n"),
+        sessionID,
+        messageID: input.messageID,
       })
     }
   }
