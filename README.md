@@ -37,7 +37,9 @@ It's not a wrapper or a proxy. It's a complete behavioral framework: 8 composabl
 opencode plugin @ccx-agent/opencode-ccx
 ```
 
-That's it. Restart OpenCode, press `@`, select **ccx**.
+That's it. Restart OpenCode, press `@`, select **ccx** as your active agent.
+
+> **Important:** ccx registers as a standalone agent, not a modifier on the default agent. You must switch to the `ccx` agent for the behavioral framework to take effect. If you want ccx to be your default agent, add `"default_agent": "ccx"` to your `opencode.json`.
 
 For global install (applies to all projects):
 
