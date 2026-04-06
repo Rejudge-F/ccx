@@ -8,6 +8,7 @@ import { createCompactionHook } from "../hooks/compaction"
 import { createConfigHook } from "../hooks/config-handler"
 import { createDynamicSystemPrompt } from "../hooks/dynamic-system-prompt"
 import { createEnvironmentContext } from "../hooks/environment-context"
+import { createIdleCompactionHook, recordSessionTurn } from "../hooks/idle-compaction"
 import { createMessageTransformHook } from "../hooks/message-transform"
 import { createRiskGuard } from "../hooks/risk-guard"
 import { createToolDefinitionHook } from "../hooks/tool-definition"
@@ -48,6 +49,7 @@ export function createPluginInterface(args: {
   const compactionHook = createCompactionHook()
   const toolDefinitionHook = createToolDefinitionHook()
   const messageTransformHook = createMessageTransformHook()
+  const idleCompaction = createIdleCompactionHook(config, ctx.client)
 
   return {
     config: configHook,
@@ -74,9 +76,19 @@ export function createPluginInterface(args: {
 
     event: async (input) => {
       await environmentContext(input, {})
+      const rawEvent = (input as Record<string, unknown>).event as Record<string, unknown> | undefined
+      if (rawEvent) {
+        await idleCompaction.onEvent(rawEvent as { type: string; properties?: { sessionID?: string } })
+      }
     },
 
-    "chat.message": chatMessageHook,
+    "chat.message": async (input, output) => {
+      await chatMessageHook(input, output)
+      if (input.sessionID) {
+        recordSessionTurn(input.sessionID)
+        await idleCompaction.onChatMessage(input.sessionID)
+      }
+    },
     "chat.params": chatParamsHook,
     "tool.definition": toolDefinitionHook,
     "experimental.chat.system.transform": dynamicSystemPrompt,
