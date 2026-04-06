@@ -79,6 +79,34 @@ Then in `opencode.json`:
 
 ## What's Inside
 
+### Architecture & Hook Integration
+
+ccx intercepts the standard OpenCode execution loop at multiple points to inject discipline and safety:
+
+```mermaid
+graph TD
+    User([User Request]) --> OP[OpenCode Agent Loop]
+    
+    subgraph ccx Plugin
+        H1[chat.message] -.->|Inject Verification Reminders| OP
+        H2[chat.system.transform] -.->|Load CLAUDE.md & Context| OP
+        H3[chat.params] -.->|Agent-specific Temp/TopP| OP
+        
+        OP --> ToolCall{Tool Call}
+        
+        ToolCall -->|Before| H4[tool.execute.before]
+        H4 -.->|Risk Guard Warning| ToolCall
+        
+        ToolCall -->|Execute| Exec[Run Tool]
+        
+        Exec -->|After| H5[tool.execute.after]
+        H5 -.->|Track Edits & Remind| OP
+        
+        OP -->|Context Full| H6[session.compacting]
+        H6 -.->|Preserve Plan & Verdict| OP
+    end
+```
+
 ### Primary Agent: `ccx`
 
 The main agent comes with 8 composable system prompt sections derived from Claude Code's prompt architecture:
@@ -169,6 +197,41 @@ ccx was built by studying Claude Code's prompt architecture and adapting its cor
 ## The Verification Agent
 
 The most opinionated part of ccx. Key design decisions:
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant CCX as ccx Agent
+    participant Plan as ccx-plan
+    participant Verify as ccx-verification
+    participant OS as Filesystem/Bash
+    
+    User->>CCX: "Implement X feature"
+    CCX->>Plan: delegate(prompt)
+    Plan->>OS: Glob/Grep/Read (Read-only)
+    Plan-->>CCX: Blueprint & Critical Files
+    
+    CCX->>OS: Edit/Write (Implementation)
+    CCX->>OS: Bash (Tests/Build)
+    Note over CCX: > 3 files edited<br>Hook injects: "Must verify"
+    
+    CCX->>Verify: delegate(files, approach)
+    
+    loop Verification Cycle
+        Verify->>OS: Bash (Run tests, lint, probes)
+        OS-->>Verify: Output
+        
+        alt Fails or Needs Change
+            Verify-->>CCX: VERDICT: FAIL + Reproduction
+            CCX->>OS: Edit (Fix issues)
+            CCX->>Verify: delegate(corrections)
+        else Succeeds
+            Verify-->>CCX: VERDICT: PASS + Proof
+        end
+    end
+    
+    CCX-->>User: "Done. Verification passed."
+```
 
 - **Execution over reading** — every check must include a `Command run` block with real terminal output. "I reviewed the code and it looks correct" is rejected.
 - **Self-rationalization awareness** — the prompt lists excuses the agent will reach for ("the code looks correct", "the tests already pass", "this would take too long") and instructs it to do the opposite.
