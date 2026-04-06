@@ -9,25 +9,20 @@ type ChatParamsInput = {
 type ChatParamsOutput = {
   temperature: number
   topP: number
+  top_p?: number
   topK: number
   options: Record<string, unknown>
 }
 
-const AGENT_PARAMS: Record<string, Partial<ChatParamsOutput>> = {
-  "ccx-plan": { temperature: 0.3 },
-  "ccx-verification": { temperature: 0.2 },
-  "ccx-explore": { temperature: 0.5 },
-  "ccx-coordinator": { temperature: 0.4 },
-  "ccx-general-purpose": { temperature: 0.5 },
-}
-
 export function createChatParamsHook() {
-  return async (input: ChatParamsInput, output: ChatParamsOutput): Promise<void> => {
-    const agentParams = AGENT_PARAMS[input.agent]
-    if (!agentParams) return
-
-    if (agentParams.temperature !== undefined) output.temperature = agentParams.temperature
-    if (agentParams.topP !== undefined) output.topP = agentParams.topP
-    if (agentParams.topK !== undefined) output.topK = agentParams.topK
+  return async (_input: ChatParamsInput, output: ChatParamsOutput): Promise<void> => {
+    const out = output as Record<string, unknown>
+    const hasTemperature = out.temperature !== undefined
+    const hasTopP = out.topP !== undefined || out.top_p !== undefined
+    const hasBoth = hasTemperature && hasTopP
+    if (hasBoth) {
+      delete out.topP
+      delete out.top_p
+    }
   }
 }
