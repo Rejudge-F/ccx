@@ -73,7 +73,7 @@ export function createDynamicSystemPrompt(config: OhMyCCAgentConfig, directory: 
             return null
           }
           const { editedFilesCount } = getVerificationState(sessionID)
-          return `# Verification Reminder\n\nYou have edited ${editedFilesCount} files in this session. You MUST run verification (via ccx-verification subagent) before declaring the task complete. This is not optional.`
+          return `# Verification Reminder\n\nYou have edited ${editedFilesCount} files in this session. It is recommended to run verification (via ccx-verification subagent) before declaring the task complete.`
         },
       }),
     ]
