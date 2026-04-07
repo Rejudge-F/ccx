@@ -251,7 +251,21 @@ or `FAIL` with reproduction steps, or `PARTIAL` with what couldn't be verified a
 
 ## Configuration
 
-Create `~/.config/opencode/ccx.json` (global) or `.opencode/ccx.json` (project-level):
+Config is loaded in this order (first hit wins):
+
+1. `.opencode/ccx.json` (project-level)
+2. `~/.config/opencode/ccx.json` (global)
+3. built-in defaults
+
+Notes:
+- The config loader supports JSON with comments (`//` and `/* ... */`).
+- Project config overrides global config (it does not deep-merge both files).
+
+Create one of the following files:
+- `.opencode/ccx.json` (project-level)
+- `~/.config/opencode/ccx.json` (global)
+
+Example:
 
 ```json
 {
@@ -261,7 +275,14 @@ Create `~/.config/opencode/ccx.json` (global) or `.opencode/ccx.json` (project-l
   "output_style": null,
   "verification": {
     "auto_remind": true,
-    "min_file_edits": 3
+    "min_file_edits": 3,
+    "spot_check_min_commands": 2
+  },
+  "risk_guard": {
+    "enforce_high_risk_confirmation": true
+  },
+  "subagent_orchestration": {
+    "explore_min_queries": 5
   }
 }
 ```
@@ -274,6 +295,9 @@ Create `~/.config/opencode/ccx.json` (global) or `.opencode/ccx.json` (project-l
 | `output_style` | `string \| null` | `null` | Custom output style name |
 | `verification.auto_remind` | `boolean` | `true` | Auto-nudge verification after edits |
 | `verification.min_file_edits` | `number` | `3` | File edit threshold before nudge |
+| `verification.spot_check_min_commands` | `number` | `2` | Minimum verifier commands to re-run after PASS spot-check |
+| `risk_guard.enforce_high_risk_confirmation` | `boolean` | `true` | Block high-risk commands unless explicit user confirmation is present |
+| `subagent_orchestration.explore_min_queries` | `number` | `5` | Escalate to `ccx-explore` when directed lookup likely needs more than this query count |
 
 ---
 

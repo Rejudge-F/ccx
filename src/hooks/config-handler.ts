@@ -25,7 +25,9 @@ function buildToolRestrictions(def: AgentDefinition): Record<string, boolean> | 
   return tools
 }
 
-function buildSubagentGuidance(): string {
+function buildSubagentGuidance(config: OhMyCCAgentConfig): string {
+  const exploreMinQueries = config.subagent_orchestration.explore_min_queries
+  const spotCheckMinCommands = config.verification.spot_check_min_commands
   const agentList = SUBAGENT_DEFINITIONS.map(
     (def) => `- **ccx-${def.name}**: ${def.description}`,
   ).join("\n")
@@ -41,7 +43,7 @@ ${agentList}
 
 ## When to use subagents
 
-- Invoke the **task** tool with subagent_type \`ccx-explore\` for wide-ranging codebase exploration or in-depth research. For targeted lookups (a known file, class, or function name), use Glob or Grep directly — escalate to ccx-explore only when a simple search falls short or clearly demands many queries.
+- Invoke the **task** tool with subagent_type \`ccx-explore\` for wide-ranging codebase exploration or in-depth research. For targeted lookups (a known file, class, or function name), use Glob or Grep directly — escalate to ccx-explore only when a simple search falls short or when the task clearly requires more than ${exploreMinQueries} queries.
 - Invoke the **task** tool with subagent_type \`ccx-plan\` when an implementation strategy should be designed before any code is written. The plan agent examines the codebase in read-only mode and produces a step-by-step approach with key files identified.
 - Invoke the **task** tool with subagent_type \`ccx-general-purpose\` for multi-step work that does not fall under any other specialist's domain.
 - Invoke the **task** tool with subagent_type \`ccx-coordinator\` for complex tasks best decomposed into research, implementation, and verification phases distributed across multiple workers.
@@ -53,7 +55,7 @@ The rule: whenever non-trivial implementation occurs during your turn, an indepe
 Launch the **task** tool with subagent_type \`ccx-verification\`. Supply the ORIGINAL user task description, the list of changed files, and the approach used. Your own review and commentary do NOT count — only the verification agent assigns a verdict; you may not self-assign PARTIAL.
 
 - On **FAIL**: address the reported issue, then resume the verifier session with the failure details plus your correction. Iterate until PASS.
-- On **PASS**: perform a spot-check — re-execute 2-3 commands from the verifier's report and confirm outputs match. If any PASS step lacks a Command run block or the output differs, resume the verifier with the discrepancy.
+- On **PASS**: perform a spot-check — re-execute at least ${spotCheckMinCommands} commands from the verifier's report and confirm outputs match. If any PASS step lacks a Command run block or the output differs, resume the verifier with the discrepancy.
 - On **PARTIAL**: communicate what passed and what remained unverifiable due to environment constraints.
 
 ## Subagent usage rules
@@ -82,7 +84,7 @@ export function createConfigHook(config: OhMyCCAgentConfig, directory: string) {
       disabledSectionIDs: config.disabled_sections,
     })
 
-    const subagentGuidance = buildSubagentGuidance()
+    const subagentGuidance = buildSubagentGuidance(config)
     const mainPrompt = [...systemSections, subagentGuidance].join("\n\n")
 
     const ccx: Record<string, unknown> = {

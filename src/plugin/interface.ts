@@ -41,7 +41,7 @@ export function createPluginInterface(args: {
   const { ctx, config } = args
 
   const configHook = createConfigHook(config, ctx.directory)
-  const riskGuard = createRiskGuard()
+  const riskGuard = createRiskGuard(config)
   const verificationReminder = createVerificationReminder(config)
   const environmentContext = createEnvironmentContext(ctx.directory)
   const gitContext = createGitContextHook(ctx.directory)
