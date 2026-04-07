@@ -1,5 +1,4 @@
 import type { OhMyCCAgentConfig } from "../config/schema"
-import { enableMicrocompact } from "./message-transform"
 
 type SessionIdleState = {
   lastIdleTimestamp: number
@@ -70,8 +69,6 @@ export function createIdleCompactionHook(config: OhMyCCAgentConfig, client: unkn
     onChatMessage: async (sessionID: string) => {
       if (!config.enabled) return
       if (!shouldCompactOnReturn(sessionID)) return
-
-      enableMicrocompact()
 
       try {
         await typedClient.session.summarize({ path: { id: sessionID } })

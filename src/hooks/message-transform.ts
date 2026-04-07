@@ -67,21 +67,12 @@ function collapseConsecutiveReasoningParts(messages: MessageInfo[]) {
   }
 }
 
-let microcompactEnabled = false
-
-export function enableMicrocompact() {
-  microcompactEnabled = true
-}
-
 export function createMessageTransformHook() {
   return async (
     _input: Record<string, unknown>,
     output: { messages: MessageInfo[] },
   ): Promise<void> => {
-    if (microcompactEnabled) {
-      microcompactOldToolOutputs(output.messages)
-      microcompactEnabled = false
-    }
+    microcompactOldToolOutputs(output.messages)
     trimLongToolOutputs(output.messages)
     collapseConsecutiveReasoningParts(output.messages)
   }

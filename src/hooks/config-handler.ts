@@ -8,15 +8,29 @@ import { VERIFICATION_AGENT_DEFINITION } from "../agents/verification"
 import { COORDINATOR_AGENT_DEFINITION } from "../agents/coordinator"
 import type { AgentDefinition } from "../agents/types"
 
-const SUBAGENT_DEFINITIONS: AgentDefinition[] = [
+const BASE_SUBAGENT_DEFINITIONS: AgentDefinition[] = [
   EXPLORE_AGENT_DEFINITION,
   PLAN_AGENT_DEFINITION,
   GENERAL_PURPOSE_AGENT_DEFINITION,
   VERIFICATION_AGENT_DEFINITION,
-  COORDINATOR_AGENT_DEFINITION,
 ]
 
+function getEnabledSubagentDefinitions(config: OhMyCCAgentConfig): AgentDefinition[] {
+  if (config.subagent_orchestration.coordinator_enabled) {
+    return [...BASE_SUBAGENT_DEFINITIONS, COORDINATOR_AGENT_DEFINITION]
+  }
+  return BASE_SUBAGENT_DEFINITIONS
+}
+
 function buildToolRestrictions(def: AgentDefinition): Record<string, boolean> | undefined {
+  if (def.allowedTools && def.allowedTools.length > 0) {
+    const tools: Record<string, boolean> = { "*": false }
+    for (const tool of def.allowedTools) {
+      tools[tool.toLowerCase()] = true
+    }
+    return tools
+  }
+
   if (!def.disallowedTools || def.disallowedTools.length === 0) return undefined
   const tools: Record<string, boolean> = { "*": true }
   for (const tool of def.disallowedTools) {
@@ -28,27 +42,42 @@ function buildToolRestrictions(def: AgentDefinition): Record<string, boolean> | 
 function buildSubagentGuidance(config: OhMyCCAgentConfig): string {
   const exploreMinQueries = config.subagent_orchestration.explore_min_queries
   const spotCheckMinCommands = config.verification.spot_check_min_commands
-  const agentList = SUBAGENT_DEFINITIONS.map(
+  const enabledSubagents = getEnabledSubagentDefinitions(config)
+  const agentList = enabledSubagents.map(
     (def) => `- **ccx-${def.name}**: ${def.description}`,
   ).join("\n")
 
-  return `# Subagent orchestration
+  const whenToUse = [
+    `- Invoke the **task** tool with subagent_type \`ccx-explore\` for wide-ranging codebase exploration or in-depth research. For targeted lookups (a known file, class, or function name), use Glob or Grep directly — escalate to ccx-explore only when a simple search falls short or when the task clearly requires more than ${exploreMinQueries} queries.`,
+    "- Invoke the **task** tool with subagent_type `ccx-plan` when an implementation strategy should be designed before any code is written. The plan agent examines the codebase in read-only mode and produces a step-by-step approach with key files identified.",
+    "- Invoke the **task** tool with subagent_type `ccx-general-purpose` for multi-step work that does not fall under any other specialist's domain.",
+  ]
 
-The \`task\` tool lets you launch specialized subagents. Leverage them to distribute work in parallel and shield your primary context window from being overwhelmed by verbose output.
+  if (config.subagent_orchestration.coordinator_enabled) {
+    whenToUse.push(
+      "- Invoke the **task** tool with subagent_type `ccx-coordinator` for complex tasks best decomposed into research, implementation, and verification phases distributed across multiple workers.",
+    )
+  }
 
-Reach for the task tool proactively when the current job aligns with a subagent's specialty. If a subagent's description indicates proactive usage, invoke it on your own initiative rather than waiting for the user to request it.
+  const subagentUsageRules = [
+    "- Subagents excel at running independent queries concurrently and keeping bulky output out of the main context, but avoid overusing them when the work is simple enough to handle directly.",
+    "- Do NOT redo work that a subagent is already performing — once you delegate a research task, refrain from executing the same searches yourself.",
+    "- When dispatching subagents, inform the user about what was launched and what results you are awaiting.",
+    "- You may launch several subagents concurrently by issuing multiple task tool calls within a single response.",
+  ]
 
-## Available subagents
-${agentList}
+  if (config.subagent_orchestration.allow_subagent_delegation) {
+    subagentUsageRules.push(
+      "- If you are already operating as a subagent, prefer executing directly and keep delegation chains shallow.",
+    )
+  } else {
+    subagentUsageRules.push(
+      "- If you are already operating as a subagent, execute directly and avoid recursively dispatching more subagents unless the user explicitly requests delegation.",
+    )
+  }
 
-## When to use subagents
-
-- Invoke the **task** tool with subagent_type \`ccx-explore\` for wide-ranging codebase exploration or in-depth research. For targeted lookups (a known file, class, or function name), use Glob or Grep directly — escalate to ccx-explore only when a simple search falls short or when the task clearly requires more than ${exploreMinQueries} queries.
-- Invoke the **task** tool with subagent_type \`ccx-plan\` when an implementation strategy should be designed before any code is written. The plan agent examines the codebase in read-only mode and produces a step-by-step approach with key files identified.
-- Invoke the **task** tool with subagent_type \`ccx-general-purpose\` for multi-step work that does not fall under any other specialist's domain.
-- Invoke the **task** tool with subagent_type \`ccx-coordinator\` for complex tasks best decomposed into research, implementation, and verification phases distributed across multiple workers.
-
-## Verification contract
+  const verificationSection = config.verification.enforce_contract
+    ? `## Verification contract
 
 The rule: whenever non-trivial implementation occurs during your turn, an independent adversarial review must take place before you declare completion — whether you wrote the code yourself or a subagent did. You are the gatekeeper. Non-trivial is defined as: 3+ file edits, backend/API changes, or infrastructure changes.
 
@@ -56,14 +85,27 @@ Launch the **task** tool with subagent_type \`ccx-verification\`. Supply the ORI
 
 - On **FAIL**: address the reported issue, then resume the verifier session with the failure details plus your correction. Iterate until PASS.
 - On **PASS**: perform a spot-check — re-execute at least ${spotCheckMinCommands} commands from the verifier's report and confirm outputs match. If any PASS step lacks a Command run block or the output differs, resume the verifier with the discrepancy.
-- On **PARTIAL**: communicate what passed and what remained unverifiable due to environment constraints.
+- On **PARTIAL**: communicate what passed and what remained unverifiable due to environment constraints.`
+    : "## Verification guidance\n\nFor significant implementation changes, prefer independent verification with subagent_type `ccx-verification` before reporting completion."
+
+  return `# Subagent orchestration
+
+Use the \`task\` tool with specialized subagents when the current task clearly matches their role. Subagents are useful for parallelizing independent work and protecting the main context window from bulky output, but they should not be used excessively.
+
+Avoid duplicate work: once a search or investigation is delegated, do not run the same lookups in parallel from the current agent.
+
+## Available subagents
+${agentList}
+
+## When to use subagents
+
+${whenToUse.join("\n")}
+
+${verificationSection}
 
 ## Subagent usage rules
 
-- Subagents excel at running independent queries concurrently and keeping bulky output out of the main context, but avoid overusing them when the work is simple enough to handle directly.
-- Do NOT redo work that a subagent is already performing — once you delegate a research task, refrain from executing the same searches yourself.
-- When dispatching subagents, inform the user about what was launched and what results you are awaiting.
-- You may launch several subagents concurrently by issuing multiple task tool calls within a single response.`
+${subagentUsageRules.join("\n")}`
 }
 
 export function createConfigHook(config: OhMyCCAgentConfig, directory: string) {
@@ -94,8 +136,9 @@ export function createConfigHook(config: OhMyCCAgentConfig, directory: string) {
       tools: { "*": true },
     }
 
+    const enabledSubagents = getEnabledSubagentDefinitions(config)
     const subagents: Record<string, unknown> = {}
-    for (const def of SUBAGENT_DEFINITIONS) {
+    for (const def of enabledSubagents) {
       subagents[`ccx-${def.name}`] = {
         description: def.description,
         mode: "subagent",

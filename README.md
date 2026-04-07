@@ -23,7 +23,7 @@ Claude Code solved this with a sophisticated behavioral framework — but it's l
 
 ccx extracts the core behavioral principles from Claude Code's prompt architecture and makes them work in OpenCode — with any model, any provider.
 
-It's not a wrapper or a proxy. It's a complete behavioral framework: 8 composable system prompt sections, 5 specialized subagents, 10 runtime hooks that dynamically adapt the agent's behavior every turn.
+It's not a wrapper or a proxy. It's a complete behavioral framework: 8 composable system prompt sections, 4 default subagents (+ optional coordinator), and 10 runtime hooks that dynamically adapt the agent's behavior every turn.
 
 **Before ccx:** Agent writes 200 lines, adds 3 helper files, says "done."
 
@@ -124,15 +124,15 @@ The main agent comes with 8 composable system prompt sections derived from Claud
 | **output-efficiency** | Lead with the answer, skip filler, report at milestones not continuously |
 | **environment** | Dynamic workspace context — cwd, git status, platform, shell |
 
-### 5 Specialized Subagents
+### Subagents (Claude-like defaults)
 
-| Agent | Mode | Purpose |
-|-------|------|---------|
-| **ccx-explore** | read-only | Fast codebase search — parallel glob/grep/read across large repos |
-| **ccx-plan** | read-only | Software architect — produces step-by-step plans with critical file lists |
-| **ccx-verification** | read-only | Adversarial verifier — VERDICT protocol (PASS/FAIL/PARTIAL), runs real commands, catches self-rationalizations |
-| **ccx-general-purpose** | read-write | Multi-strategy worker for tasks outside other specialists |
-| **ccx-coordinator** | orchestrator | Decomposes complex work into Research, Synthesis, Implementation, Verification across parallel workers |
+| Agent | Mode | Default | Purpose |
+|-------|------|---------|---------|
+| **ccx-explore** | read-only | on | Fast codebase search — parallel glob/grep/read across large repos |
+| **ccx-plan** | read-only | on | Software architect — produces step-by-step plans with critical file lists |
+| **ccx-verification** | read-only | on | Adversarial verifier — VERDICT protocol (PASS/FAIL/PARTIAL), runs real commands, catches self-rationalizations |
+| **ccx-general-purpose** | read-write | on | Multi-strategy worker for tasks outside other specialists |
+| **ccx-coordinator** | orchestrator | off | Decomposes complex work into Research, Synthesis, Implementation, Verification across parallel workers. Tool surface is restricted to `task` + `question` |
 
 ### 10 Runtime Hooks
 
@@ -142,7 +142,7 @@ ccx uses every major hook point in the OpenCode plugin API to dynamically shape 
 
 | Hook | What it does |
 |------|-------------|
-| **config** | Registers the ccx agent + 5 subagents with their system prompts and tool restrictions |
+| **config** | Registers the ccx agent + enabled subagents (coordinator is opt-in) with their system prompts and tool restrictions |
 | **tool** | Creates agent dispatch tools for the subagent registry |
 
 #### Per-Turn Hooks (every LLM call)
@@ -153,7 +153,7 @@ ccx uses every major hook point in the OpenCode plugin API to dynamically shape 
 | **chat.params** | Tunes temperature/topP per agent — low for plan/verification (precision), higher for explore (creativity) |
 | **experimental.chat.system.transform** | Dynamically injects project instructions (CLAUDE.md), session context (edited files list), and verification reminders into the system prompt |
 | **tool.definition** | Appends safety rules to bash/edit/write tool descriptions, usage hints to glob/grep/read |
-| **experimental.chat.messages.transform** | Trims long tool outputs (>8KB), collapses consecutive reasoning parts to save context |
+| **experimental.chat.messages.transform** | Automatically microcompacts older clearable tool outputs (keeps recent 5), trims long tool outputs (>8KB), collapses consecutive reasoning parts to save context |
 
 #### Event Hooks (reactive)
 
@@ -174,11 +174,14 @@ ccx was built by studying Claude Code's prompt architecture and adapting its cor
 | Claude Code Feature | ccx Implementation |
 |--------------------|--------------------|
 | 8-section system prompt | 8 composable prompt sections, near-identical content |
-| 5 subagent types (explore, plan, verify, general, coordinator) | Same 5 agents with equivalent prompts |
-| Verification contract (3+ file edits → mandatory review) | Dynamic system prompt injection |
+| Agent orchestration guidance | Same guidance style: use specialized subagents when appropriate, avoid overuse, avoid duplicate delegated work |
+| Explore escalation threshold | `explore_min_queries=3` default (matches Claude CLI external default) |
+| Coordinator default | Disabled by default, opt-in via config |
+| Verification contract | Configurable. Strict contract is opt-in (`verification.enforce_contract=true`) |
 | VERDICT protocol (PASS/FAIL/PARTIAL) | Identical format and adversarial strategies |
 | Project instructions (CLAUDE.md) | Auto-loaded from CLAUDE.md / .claude/instructions.md / AGENTS.md |
 | Tool safety hints | `tool.definition` hook appends rules to bash/edit/write descriptions |
+| Tool-output microcompact | Older `read/grep/glob/bash/webfetch` results are compacted automatically while preserving recent outputs |
 | Context compaction preservation | Custom compaction prompt via `experimental.session.compacting` |
 | Trust boundary / prompt injection defense | Explicit section in system prompt |
 
@@ -192,6 +195,19 @@ ccx was built by studying Claude Code's prompt architecture and adapting its cor
 | AI-powered safety classifier (YOLO mode) | Would require LLM call in hook, adds latency |
 | Plan mode with user approval gate | Requires TUI integration (experimental) |
 | AST-level bash command analysis | Possible but high complexity cost |
+
+### Workflow parity summary (current defaults)
+
+With the default ccx config shown below, workflow behavior is aligned to Claude CLI's external/default orchestration style:
+
+- subagents are used when needed, not by default for every task
+- broad exploration escalates after directed search becomes insufficient (`explore_min_queries=3`)
+- coordinator-style multi-hop orchestration is off by default
+- recursive subagent delegation is discouraged by default
+- strict mandatory verification contract is off by default (opt-in)
+- when enabled, coordinator runs orchestration-only with a constrained tool surface (`task` + `question`)
+
+This is behavior-level parity, not engine-level identity. Engine internals (runtime schedulers, fork execution model, feature-flag infrastructure) are different and remain outside plugin scope.
 
 ---
 
@@ -274,7 +290,8 @@ Example:
   "disabled_hooks": [],
   "output_style": null,
   "verification": {
-    "auto_remind": true,
+    "auto_remind": false,
+    "enforce_contract": false,
     "min_file_edits": 3,
     "spot_check_min_commands": 2
   },
@@ -282,7 +299,9 @@ Example:
     "enforce_high_risk_confirmation": true
   },
   "subagent_orchestration": {
-    "explore_min_queries": 5
+    "explore_min_queries": 3,
+    "coordinator_enabled": false,
+    "allow_subagent_delegation": false
   }
 }
 ```
@@ -293,11 +312,14 @@ Example:
 | `disabled_sections` | `string[]` | `[]` | Prompt sections to skip (e.g., `["tone-style"]`) |
 | `disabled_hooks` | `string[]` | `[]` | Hooks to disable (e.g., `["risk-guard"]`) |
 | `output_style` | `string \| null` | `null` | Custom output style name |
-| `verification.auto_remind` | `boolean` | `true` | Auto-nudge verification after edits |
+| `verification.auto_remind` | `boolean` | `false` | Auto-nudge verification after edits |
+| `verification.enforce_contract` | `boolean` | `false` | Enable strict verification contract wording and reminder logic |
 | `verification.min_file_edits` | `number` | `3` | File edit threshold before nudge |
 | `verification.spot_check_min_commands` | `number` | `2` | Minimum verifier commands to re-run after PASS spot-check |
 | `risk_guard.enforce_high_risk_confirmation` | `boolean` | `true` | Block high-risk commands unless explicit user confirmation is present |
-| `subagent_orchestration.explore_min_queries` | `number` | `5` | Escalate to `ccx-explore` when directed lookup likely needs more than this query count |
+| `subagent_orchestration.explore_min_queries` | `number` | `3` | Escalate to `ccx-explore` when directed lookup likely needs more than this query count |
+| `subagent_orchestration.coordinator_enabled` | `boolean` | `false` | Register and advertise `ccx-coordinator` subagent |
+| `subagent_orchestration.allow_subagent_delegation` | `boolean` | `false` | Permit subagents to delegate further. When `false`, runtime recursion guard blocks nested `task` delegation from `ccx-*` subagents unless explicit delegation-approval metadata is present |
 
 ---
 

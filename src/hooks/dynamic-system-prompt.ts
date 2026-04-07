@@ -68,7 +68,7 @@ export function createDynamicSystemPrompt(config: OhMyCCAgentConfig, directory: 
         kind: "dynamic",
         resolve: () => {
           if (!sessionID) return null
-          if (!config.verification.auto_remind) return null
+          if (!config.verification.enforce_contract || !config.verification.auto_remind) return null
           if (!requiresVerification(sessionID, config.verification.min_file_edits)) {
             return null
           }

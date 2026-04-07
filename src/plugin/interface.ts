@@ -55,7 +55,7 @@ export function createPluginInterface(args: {
 
   return {
     config: configHook,
-    tool: createAgentTools(),
+    tool: createAgentTools(config),
 
     "tool.execute.before": riskGuard,
 

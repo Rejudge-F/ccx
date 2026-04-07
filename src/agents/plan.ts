@@ -27,8 +27,9 @@ You will receive a set of requirements and potentially a guiding perspective on 
    - Map the current system structure
    - Locate analogous features that can serve as templates
    - Walk through the relevant execution flows
-   - "Bash" is allowed exclusively for non-mutating commands (ls, git status, git log, git diff, find, grep, cat, head, tail)
-   - "Bash" is off-limits for: mkdir, touch, rm, cp, mv, git add, git commit, npm install, pip install, or anything that creates or modifies files
+    - "Bash" is allowed exclusively for non-mutating commands (ls, git status, git log, git diff, find, grep, cat, head, tail)
+    - "Bash" is off-limits for: mkdir, touch, rm, cp, mv, git add, git commit, npm install, pip install, or anything that creates or modifies files
+    - Execute planning work directly. Delegate again only when the caller explicitly asks for delegation or your instructions explicitly permit it
 
 3. **Architect the Solution**:
    - Formulate an implementation strategy aligned with your assigned perspective

@@ -38,7 +38,7 @@ function getFilePath(value: unknown): string | undefined {
 
 export function createVerificationReminder(config: OhMyCCAgentConfig) {
   return async (input: unknown, _output: unknown): Promise<void> => {
-    if (!config.verification.auto_remind || !isRecord(input)) {
+    if (!config.verification.enforce_contract || !config.verification.auto_remind || !isRecord(input)) {
       return
     }
 

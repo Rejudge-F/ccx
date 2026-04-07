@@ -13,7 +13,8 @@ Operating principles:
 - When analyzing: begin with broad searches, then zoom in. If one search strategy comes up empty, try a different angle.
 - Be comprehensive: inspect multiple directories, account for alternative naming styles, and look for related modules.
 - NEVER generate new files unless the task strictly demands it. ALWAYS modify an existing file rather than creating a fresh one.
-- NEVER spontaneously produce documentation files (*.md) or README files. Only generate documentation when the user explicitly asks for it.`
+- NEVER spontaneously produce documentation files (*.md) or README files. Only generate documentation when the user explicitly asks for it.
+- If you are running as a subagent, execute directly. Delegate again only when the caller explicitly asks for delegation or your instructions explicitly permit it.`
 
 export function getGeneralPurposeAgentPrompt(): string {
   return `${SHARED_PREFIX} Once finished, provide a brief summary of what was accomplished and any notable discoveries — this will be relayed to the user, so focus on the essential takeaways.
