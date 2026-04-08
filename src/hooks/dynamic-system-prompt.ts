@@ -1,28 +1,11 @@
 import type { OhMyCCAgentConfig } from "../config/schema"
-import { existsSync, readFileSync } from "node:fs"
-import { join } from "node:path"
+import { loadInstructionBundle } from "../prompts/project-instructions"
 import { getGitSnapshotSection } from "./git-context"
 import { getVerificationState, listEditedFiles, requiresVerification } from "./verification-reminder"
 import { createPromptSection, resolvePromptSections } from "../prompts/section-registry"
 
-function loadProjectInstructions(directory: string): string | null {
-  const candidates = ["CLAUDE.md", ".claude/instructions.md", "AGENTS.md"]
-  for (const name of candidates) {
-    const fullPath = join(directory, name)
-    if (existsSync(fullPath)) {
-      try {
-        const content = readFileSync(fullPath, "utf-8").trim()
-        if (content) return content
-      } catch {
-        continue
-      }
-    }
-  }
-  return null
-}
-
 export function createDynamicSystemPrompt(config: OhMyCCAgentConfig, directory: string) {
-  const projectInstructions = loadProjectInstructions(directory)
+  const instructionBundle = loadInstructionBundle(config, directory)
 
   return async (
     input: { sessionID?: string; model: unknown },
@@ -36,10 +19,7 @@ export function createDynamicSystemPrompt(config: OhMyCCAgentConfig, directory: 
       createPromptSection({
         id: "project-instructions",
         kind: "dynamic",
-        resolve: () => {
-          if (!projectInstructions) return null
-          return `# Project Instructions\n\nThe following instructions were found in the project root and MUST be followed:\n\n${projectInstructions}`
-        },
+        resolve: () => instructionBundle.systemPromptSection ?? null,
       }),
       createPromptSection({
         id: "git-context",

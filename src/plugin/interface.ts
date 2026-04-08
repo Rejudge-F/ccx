@@ -14,6 +14,7 @@ import { createIdleCompactionHook, recordSessionTurn } from "../hooks/idle-compa
 import { createMessageTransformHook } from "../hooks/message-transform"
 import { createRiskGuard } from "../hooks/risk-guard"
 import { createSessionWorkflowsHook } from "../hooks/session-workflows"
+import { createSsrfGuard } from "../hooks/ssrf-guard"
 import { createToolDefinitionHook } from "../hooks/tool-definition"
 import { createVerificationReminder } from "../hooks/verification-reminder"
 import { createAgentTools } from "./tool-registry"
@@ -44,6 +45,7 @@ export function createPluginInterface(args: {
 
   const configHook = createConfigHook(config, ctx.directory)
   const riskGuard = createRiskGuard(config)
+  const ssrfGuard = createSsrfGuard(config)
   const contextBundle = createContextBundleHook({ config, directory: ctx.directory })
   const verificationReminder = createVerificationReminder(config)
   const environmentContext = createEnvironmentContext(ctx.directory)
@@ -53,7 +55,7 @@ export function createPluginInterface(args: {
   const sessionWorkflows = createSessionWorkflowsHook({ config, client: ctx.client })
   const chatParamsHook = createChatParamsHook()
   const compactionHook = createCompactionHook()
-  const toolDefinitionHook = createToolDefinitionHook()
+  const toolDefinitionHook = createToolDefinitionHook(config)
   const messageTransformHook = createMessageTransformHook()
   const idleCompaction = createIdleCompactionHook(config, ctx.client)
 
@@ -63,6 +65,7 @@ export function createPluginInterface(args: {
 
     "tool.execute.before": async (input, output) => {
       await contextBundle(input, output)
+      await ssrfGuard(input, output)
       await riskGuard(input, output)
     },
 

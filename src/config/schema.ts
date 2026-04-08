@@ -9,6 +9,34 @@ const verificationSchema = z.object({
 
 const riskGuardSchema = z.object({
   enforce_high_risk_confirmation: z.boolean().default(true),
+  ast_analysis: z.boolean().default(true),
+  extra_blocked_commands: z.array(z.string()).default([]),
+  extra_allowed_commands: z.array(z.string()).default([]),
+})
+
+const ssrfGuardSchema = z.object({
+  enabled: z.boolean().default(true),
+  allow_loopback: z.boolean().default(true),
+  extra_blocked_hosts: z.array(z.string()).default([]),
+  extra_allowed_hosts: z.array(z.string()).default([]),
+})
+
+const projectInstructionsSchema = z.object({
+  enabled: z.boolean().default(true),
+  recursive: z.boolean().default(true),
+  global_file: z.boolean().default(true),
+  max_depth: z.int().positive().default(8),
+  max_total_bytes: z.int().positive().default(64_000),
+  filenames: z.array(z.string().min(1)).default([
+    "CLAUDE.md",
+    ".claude/instructions.md",
+    "AGENTS.md",
+  ]),
+})
+
+const toolHintsSchema = z.object({
+  enabled: z.boolean().default(true),
+  disabled_tools: z.array(z.string()).default([]),
 })
 
 const contextBundleSchema = z.object({
@@ -60,6 +88,27 @@ export const configSchema = z.object({
   }),
   risk_guard: riskGuardSchema.default({
     enforce_high_risk_confirmation: true,
+    ast_analysis: true,
+    extra_blocked_commands: [],
+    extra_allowed_commands: [],
+  }),
+  ssrf_guard: ssrfGuardSchema.default({
+    enabled: true,
+    allow_loopback: true,
+    extra_blocked_hosts: [],
+    extra_allowed_hosts: [],
+  }),
+  project_instructions: projectInstructionsSchema.default({
+    enabled: true,
+    recursive: true,
+    global_file: true,
+    max_depth: 8,
+    max_total_bytes: 64_000,
+    filenames: ["CLAUDE.md", ".claude/instructions.md", "AGENTS.md"],
+  }),
+  tool_hints: toolHintsSchema.default({
+    enabled: true,
+    disabled_tools: [],
   }),
   subagent_orchestration: subagentOrchestrationSchema.default({
     explore_min_queries: 3,

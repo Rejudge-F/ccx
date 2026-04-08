@@ -151,15 +151,15 @@ ccx uses every major hook point in the OpenCode plugin API to dynamically shape 
 |------|-------------|
 | **chat.message** | Tracks file edits across the session for verification threshold detection, and routes inline session-workflow commands (`/ccx-fork`, `/ccx-bg`, `/ccx-fullctx`, `/ccx-bg-status`) |
 | **chat.params** | Tunes temperature/topP per agent — low for plan/verification (precision), higher for explore (creativity) |
-| **experimental.chat.system.transform** | Dynamically injects project instructions (CLAUDE.md), session context (edited files list), and verification reminders into the system prompt |
-| **tool.definition** | Appends safety rules to bash/edit/write tool descriptions, usage hints to glob/grep/read |
+| **experimental.chat.system.transform** | Dynamically injects project instructions (CLAUDE.md tree, global CCX.md), session context (edited files list), and verification reminders into the system prompt |
+| **tool.definition** | Injects detailed per-tool usage notes, preferred alternatives, parallelism guidance, and safety rules for `bash` / `read` / `edit` / `write` / `glob` / `grep` / `webfetch` / `task` / `todowrite` |
 | **experimental.chat.messages.transform** | Automatically microcompacts older clearable tool outputs (keeps recent 5), trims long tool outputs (>8KB), collapses consecutive reasoning parts to save context |
 
 #### Event Hooks (reactive)
 
 | Hook | What it does |
 |------|-------------|
-| **tool.execute.before** | Two stages: (1) Context-Bundle injects cwd / git snapshot / recently changed files into `task` tool args so subagents share a baseline; (2) Risk Guard flags `rm -rf`, `git push --force`, `DROP TABLE`, and other destructive patterns |
+| **tool.execute.before** | Three stages: (1) Context-Bundle injects cwd / git snapshot / recently changed files into `task` tool args so subagents share a baseline; (2) SSRF Guard pre-checks `webfetch` URLs against private, link-local, and cloud-metadata ranges (incl. IPv4-mapped IPv6) with async DNS resolution; (3) Risk Guard runs AST-level bash analysis to flag `rm -rf`, critical-path deletion, `find -delete`, pipe-to-shell, `git push --force`, `kubectl delete`, `terraform apply -auto-approve`, SQL `DROP`/`DELETE`-without-WHERE, and other destructive patterns — including wrapper unwrap (`sudo`/`xargs`/`env`) |
 | **tool.execute.after** | Tracks file edits, feeds the dynamic verification reminder system |
 | **experimental.session.compacting** | Customizes context compaction to preserve: original task, implementation plan, edited files, verification status, architectural decisions |
 
@@ -192,8 +192,10 @@ ccx was built by studying Claude Code's prompt architecture and adapting its cor
 | Coordinator default | Disabled by default, opt-in via config |
 | Verification contract | Configurable. Strict contract is opt-in (`verification.enforce_contract=true`) |
 | VERDICT protocol (PASS/FAIL/PARTIAL) | Identical format and adversarial strategies |
-| Project instructions (CLAUDE.md) | Auto-loaded from CLAUDE.md / .claude/instructions.md / AGENTS.md |
-| Tool safety hints | `tool.definition` hook appends rules to bash/edit/write descriptions |
+| Project instructions (CLAUDE.md) | Recursive upward discovery from cwd, merging every `CLAUDE.md` / `.claude/instructions.md` / `AGENTS.md` along the path plus a global `~/.config/opencode/ccx/CCX.md` (root-first ordering, budget-capped) |
+| AST-level bash command analysis | Full AST inspection via `bash-parser` with wrapper unwrap (`sudo` / `xargs` / `env`), critical-path detection, `find -delete` / pipe-to-shell / eval-curl / `dd` to block device / `mkfs` / SQL DROP/DELETE-without-WHERE / `git push --force` / `kubectl delete` / `terraform apply -auto-approve` rules, plus user-level allow/block lists |
+| SSRF defense for fetch tools | Pre-flight guard blocking private (10/8, 172.16/12, 192.168/16), CGNAT (100.64/10), link-local (169.254/16), IPv6 ULA (fc00::/7), link-local (fe80::/10), IPv4-mapped IPv6, and non-http(s) schemes; async DNS resolution with 2s timeout |
+| Tool safety hints | `tool.definition` hook injects detailed per-tool usage notes, parallelism rules, git safety protocol, and preferred-alternative guidance for 9 tools (`bash` / `read` / `edit` / `write` / `glob` / `grep` / `webfetch` / `task` / `todowrite`) |
 | Tool-output microcompact | Older `read/grep/glob/bash/webfetch` results are compacted automatically while preserving recent outputs |
 | Context compaction preservation | Custom compaction prompt via `experimental.session.compacting` |
 | Trust boundary / prompt injection defense | Explicit section in system prompt |
@@ -207,7 +209,6 @@ ccx was built by studying Claude Code's prompt architecture and adapting its cor
 | Fork mode (shared prompt cache across subagents) | Engine-level session management |
 | AI-powered safety classifier (YOLO mode) | Would require LLM call in hook, adds latency |
 | Plan mode with user approval gate | Requires TUI integration (experimental) |
-| AST-level bash command analysis | Possible but high complexity cost |
 
 ### Workflow parity summary (current defaults)
 
@@ -221,6 +222,7 @@ With the default ccx config shown below, workflow behavior is aligned to Claude 
 - when enabled, coordinator runs orchestration-only with a constrained tool surface (`task` + `question`)
 - every dispatched subagent receives an automatically injected context bundle (cwd / git snapshot / recently changed files) so it starts from the same baseline as the parent
 - inline `/ccx-fork`, `/ccx-bg`, `/ccx-fullctx`, and `/ccx-bg-status` commands let users branch sessions, queue background prompts, dispatch full-context fork subtasks, and inspect async task state
+- bash AST analysis, SSRF pre-flight check, recursive CLAUDE.md discovery, and detailed per-tool hints are on by default and can be toggled per-field in `ccx.json`
 
 This is behavior-level parity, not engine-level identity. Engine internals (runtime schedulers, fork execution model, feature-flag infrastructure) are different and remain outside plugin scope.
 
@@ -311,7 +313,28 @@ Example:
     "spot_check_min_commands": 2
   },
   "risk_guard": {
-    "enforce_high_risk_confirmation": true
+    "enforce_high_risk_confirmation": true,
+    "ast_analysis": true,
+    "extra_blocked_commands": [],
+    "extra_allowed_commands": []
+  },
+  "ssrf_guard": {
+    "enabled": true,
+    "allow_loopback": true,
+    "extra_blocked_hosts": [],
+    "extra_allowed_hosts": []
+  },
+  "project_instructions": {
+    "enabled": true,
+    "recursive": true,
+    "global_file": true,
+    "max_depth": 8,
+    "max_total_bytes": 64000,
+    "filenames": ["CLAUDE.md", ".claude/instructions.md", "AGENTS.md"]
+  },
+  "tool_hints": {
+    "enabled": true,
+    "disabled_tools": []
   },
   "subagent_orchestration": {
     "explore_min_queries": 3,
@@ -346,6 +369,21 @@ Example:
 | `verification.min_file_edits` | `number` | `3` | File edit threshold before nudge |
 | `verification.spot_check_min_commands` | `number` | `2` | Minimum verifier commands to re-run after PASS spot-check |
 | `risk_guard.enforce_high_risk_confirmation` | `boolean` | `true` | Block high-risk commands unless explicit user confirmation is present |
+| `risk_guard.ast_analysis` | `boolean` | `true` | Run AST-level bash inspection (wrapper unwrap, flag semantics, critical-path detection). Disable to fall back to a narrower inspection of bash-only tool inputs |
+| `risk_guard.extra_blocked_commands` | `string[]` | `[]` | Additional command names always flagged as high-risk (e.g., `["kubectl", "helm"]`) |
+| `risk_guard.extra_allowed_commands` | `string[]` | `[]` | Command names to skip entirely (useful for per-project overrides) |
+| `ssrf_guard.enabled` | `boolean` | `true` | Pre-check `webfetch` URLs and block private/link-local/cloud-metadata targets |
+| `ssrf_guard.allow_loopback` | `boolean` | `true` | Allow `127.0.0.1` / `::1` / `localhost` for local dev servers |
+| `ssrf_guard.extra_blocked_hosts` | `string[]` | `[]` | Hostnames (or IP literals) to always block |
+| `ssrf_guard.extra_allowed_hosts` | `string[]` | `[]` | Hostnames (or IP literals) to allow even if they land in a private range — useful for internal infrastructure the agent legitimately needs to reach |
+| `project_instructions.enabled` | `boolean` | `true` | Load project instruction files (CLAUDE.md / AGENTS.md / etc.) into the system prompt |
+| `project_instructions.recursive` | `boolean` | `true` | Walk upwards from the working directory and merge every instruction file along the way. When `false`, only the current directory is inspected |
+| `project_instructions.global_file` | `boolean` | `true` | Also load `~/.config/opencode/ccx/CCX.md` (or `instructions.md` / `CLAUDE.md` in the same directory) as a user-level preference file |
+| `project_instructions.max_depth` | `number` | `8` | Maximum number of parent directories to scan during recursive discovery |
+| `project_instructions.max_total_bytes` | `number` | `64000` | Total byte budget for the assembled instruction section. Later (more specific) files are prioritized; the tail is truncated when the budget is exceeded |
+| `project_instructions.filenames` | `string[]` | `["CLAUDE.md", ".claude/instructions.md", "AGENTS.md"]` | Filenames to look for at each directory level |
+| `tool_hints.enabled` | `boolean` | `true` | Append detailed per-tool usage notes to tool descriptions at startup |
+| `tool_hints.disabled_tools` | `string[]` | `[]` | Tool names that should receive no hint (e.g., `["bash"]` if you prefer the raw description) |
 | `subagent_orchestration.explore_min_queries` | `number` | `3` | Escalate to `ccx-explore` when directed lookup likely needs more than this query count |
 | `subagent_orchestration.coordinator_enabled` | `boolean` | `false` | Register and advertise `ccx-coordinator` subagent |
 | `subagent_orchestration.allow_subagent_delegation` | `boolean` | `false` | Permit subagents to delegate further. When `false`, runtime recursion guard blocks nested `task` delegation from `ccx-*` subagents unless explicit delegation-approval metadata is present |
@@ -368,11 +406,15 @@ Example:
 ccx/
 ├── src/
 │   ├── index.ts              # Plugin entry — composes everything
-│   ├── prompts/              # 8 system prompt sections + composer
+│   ├── prompts/              # System prompt sections + composer
+│   │   ├── tool-hints.ts              # Detailed per-tool usage guidance
+│   │   └── project-instructions.ts    # Recursive CLAUDE.md + global CCX.md loader
 │   ├── agents/               # 5 subagent definitions with tailored prompts
-│   ├── hooks/                # 12 runtime hooks
+│   ├── hooks/                # Runtime hooks
 │   │   ├── config-handler.ts         # Agent registration
-│   │   ├── risk-guard.ts             # Destructive command detection
+│   │   ├── bash-analyzer.ts          # AST-level bash risk rules
+│   │   ├── risk-guard.ts             # Destructive command detection (AST-powered)
+│   │   ├── ssrf-guard.ts             # Pre-flight URL/host SSRF check for webfetch
 │   │   ├── context-bundle.ts         # Inject cwd/git/recent-files into task tool args
 │   │   ├── session-workflows.ts      # /ccx-fork, /ccx-bg, /ccx-fullctx, /ccx-bg-status commands
 │   │   ├── bg-tasks.ts               # Background task lifecycle registry
@@ -385,6 +427,7 @@ ccx/
 │   │   ├── tool-definition.ts        # Tool description enhancement
 │   │   └── message-transform.ts      # Message history optimization
 │   ├── config/               # Zod schema + JSONC config loader
+│   ├── types/                # Local .d.ts for untyped dependencies (bash-parser)
 │   └── plugin/               # OpenCode plugin interface + agent tool registry
 ├── .github/workflows/
 │   └── publish.yml           # Auto-publish to npm on tag push

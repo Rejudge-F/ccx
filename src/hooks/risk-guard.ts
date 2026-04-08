@@ -1,18 +1,15 @@
 import type { OhMyCCAgentConfig } from "../config/schema"
 import { getSessionAgent } from "./chat-message"
-
-type RiskLevel = "high" | "medium"
-
-const RISK_RULES: Array<{ pattern: RegExp; level: RiskLevel; name: string }> = [
-  { pattern: /rm\s+-rf\b/i, level: "high", name: "rm-rf" },
-  { pattern: /git\s+push\s+--force(?:-with-lease)?\b/i, level: "high", name: "git-force-push" },
-  { pattern: /git\s+reset\s+--hard\b/i, level: "high", name: "git-hard-reset" },
-  { pattern: /drop\s+table\b/i, level: "high", name: "sql-drop-table" },
-  { pattern: /truncate\s+table\b/i, level: "high", name: "sql-truncate-table" },
-  { pattern: /delete\s+from\b/i, level: "medium", name: "sql-delete" },
-]
+import {
+  analyzeBashCommand,
+  pickHighestFinding,
+  type RiskFinding,
+  type RiskLevel,
+} from "./bash-analyzer"
 
 const TASK_LAUNCH_TOOL_NAMES = new Set(["task"])
+const BASH_TOOL_NAMES = new Set(["bash", "shell", "sh", "exec"])
+const SQL_TOOL_NAMES = new Set(["sql", "query", "db", "database"])
 
 function isGuardedSubagentName(value: unknown): boolean {
   return typeof value === "string" && value.startsWith("ccx-") && value !== "ccx-coordinator"
@@ -46,16 +43,32 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null
 }
 
-function collectRiskText(value: unknown): string[] {
-  if (typeof value === "string") {
-    return [value]
+function collectBashSource(args: unknown): string[] {
+  if (args === null || args === undefined) return []
+  if (typeof args === "string") return [args]
+  if (Array.isArray(args)) {
+    const out: string[] = []
+    for (const item of args) out.push(...collectBashSource(item))
+    return out
   }
-  if (Array.isArray(value)) {
-    return value.flatMap((item) => collectRiskText(item))
+  if (isRecord(args)) {
+    const candidates = ["command", "cmd", "script", "args", "bash", "shell"]
+    for (const key of candidates) {
+      const value = args[key]
+      if (typeof value === "string") return [value]
+      if (Array.isArray(value)) {
+        return [value.map((entry) => (typeof entry === "string" ? entry : "")).filter(Boolean).join(" ")]
+      }
+    }
+    return []
   }
-  if (isRecord(value)) {
-    return Object.values(value).flatMap((item) => collectRiskText(item))
-  }
+  return []
+}
+
+function collectAllText(value: unknown): string[] {
+  if (typeof value === "string") return [value]
+  if (Array.isArray(value)) return value.flatMap((item) => collectAllText(item))
+  if (isRecord(value)) return Object.values(value).flatMap((item) => collectAllText(item))
   return []
 }
 
@@ -65,6 +78,13 @@ function hasExplicitUserConfirmation(value: unknown): boolean {
   if (!metadata) return false
   const confirmation = metadata.riskConfirmation
   return confirmation === true || confirmation === "approved"
+}
+
+function formatWarning(level: RiskLevel, toolName: string, finding: RiskFinding): string {
+  const lead = level === "high"
+    ? `High-risk ${toolName} invocation detected`
+    : `Potentially destructive ${toolName} invocation detected`
+  return `${lead} (${finding.name}): ${finding.message}. Command: ${finding.command}`
 }
 
 export function createRiskGuard(config: OhMyCCAgentConfig) {
@@ -99,18 +119,35 @@ export function createRiskGuard(config: OhMyCCAgentConfig) {
       }
     }
 
-    const argsText = collectRiskText(output.args).join("\n")
-    const matchedRule = RISK_RULES.find((rule) => rule.pattern.test(argsText))
-    if (!matchedRule) {
-      return
+    const astEnabled = config.risk_guard.ast_analysis
+    const bashSources: string[] = BASH_TOOL_NAMES.has(toolName)
+      ? collectBashSource(output.args)
+      : SQL_TOOL_NAMES.has(toolName)
+        ? collectBashSource(output.args)
+        : collectAllText(output.args)
+
+    const analyzerOptions = {
+      extraBlockedCommands: config.risk_guard.extra_blocked_commands,
+      extraAllowedCommands: config.risk_guard.extra_allowed_commands,
     }
 
-    const riskyToolName = isRecord(input) && typeof input.tool === "string" ? input.tool : "tool"
-    const warning = matchedRule.level === "high"
-      ? `High-risk ${riskyToolName} invocation detected (${matchedRule.name}). Explicit user confirmation is required before execution.`
-      : `Potentially destructive ${riskyToolName} invocation detected (${matchedRule.name}). Review arguments carefully before continuing.`
+    const allFindings: RiskFinding[] = []
+    for (const source of bashSources) {
+      if (!astEnabled && !BASH_TOOL_NAMES.has(toolName)) {
+        // When AST is disabled, only inspect explicit bash commands, not every arg text.
+        continue
+      }
+      const findings = analyzeBashCommand(source, analyzerOptions)
+      allFindings.push(...findings)
+    }
 
-    if (matchedRule.level === "high" && config.risk_guard.enforce_high_risk_confirmation) {
+    const top = pickHighestFinding(allFindings)
+    if (!top) return
+
+    const riskyToolName = isRecord(input) && typeof input.tool === "string" ? input.tool : "tool"
+    const warning = formatWarning(top.level, riskyToolName, top)
+
+    if (top.level === "high" && config.risk_guard.enforce_high_risk_confirmation) {
       const confirmed = hasExplicitUserConfirmation(input)
       if (!confirmed) {
         output.blocked = true
@@ -121,9 +158,13 @@ export function createRiskGuard(config: OhMyCCAgentConfig) {
     const metadata = isRecord(output.metadata) ? output.metadata : {}
     metadata.riskGuard = {
       flagged: true,
-      level: matchedRule.level,
-      pattern: matchedRule.pattern.source,
-      name: matchedRule.name,
+      level: top.level,
+      name: top.name,
+      findings: allFindings.map((finding) => ({
+        level: finding.level,
+        name: finding.name,
+        message: finding.message,
+      })),
     }
     output.metadata = metadata
   }
