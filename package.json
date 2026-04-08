@@ -1,6 +1,6 @@
 {
   "name": "@ccx-agent/opencode-ccx",
-  "version": "0.2.13",
+  "version": "0.3.0",
   "description": "Production-grade prompt engineering for OpenCode — disciplined coding, risk-aware actions, adversarial verification",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -36,6 +36,7 @@
   "dependencies": {
     "@ccx-agent/opencode-ccx": "^0.2.3",
     "@opencode-ai/plugin": "^1.2.24",
+    "bash-parser": "^0.5.0",
     "zod": "^4.1.8"
   },
   "devDependencies": {
