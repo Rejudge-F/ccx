@@ -5,7 +5,6 @@
     "": {
       "name": "@ccx-agent/opencode-ccx",
       "dependencies": {
-        "@ccx-agent/opencode-ccx": "^0.2.3",
         "@opencode-ai/plugin": "^1.2.24",
         "bash-parser": "^0.5.0",
         "zod": "^4.1.8",
@@ -17,11 +16,9 @@
     },
   },
   "packages": {
-    "@ccx-agent/opencode-ccx": ["@ccx-agent/opencode-ccx@0.2.3", "https://bnpm.byted.org/@ccx-agent/opencode-ccx/-/opencode-ccx-0.2.3.tgz", { "dependencies": { "@opencode-ai/plugin": "^1.2.24", "zod": "^4.1.8" } }, "sha512-5AnxITFuojysmHicXAjQmCUFBhGUa0HcIpNumustc2eLdC0nfVcQizt6K53P1z+peRyiys+/kPPaO8N9teDBmA=="],
+    "@opencode-ai/plugin": ["@opencode-ai/plugin@1.4.0", "https://bnpm.byted.org/@opencode-ai/plugin/-/plugin-1.4.0.tgz", { "dependencies": { "@opencode-ai/sdk": "1.4.0", "zod": "4.1.8" }, "peerDependencies": { "@opentui/core": ">=0.1.97", "@opentui/solid": ">=0.1.97" }, "optionalPeers": ["@opentui/core", "@opentui/solid"] }, "sha512-VFIff6LHp/RVaJdrK3EQ1ijx0K1tV5i1DY5YJ+pRqwC6trunPHbvqSN0GHSTZX39RdnSc+XuzCTZQCy1W2qNOg=="],
 
-    "@opencode-ai/plugin": ["@opencode-ai/plugin@1.3.17", "https://bnpm.byted.org/@opencode-ai/plugin/-/plugin-1.3.17.tgz", { "dependencies": { "@opencode-ai/sdk": "1.3.17", "zod": "4.1.8" }, "peerDependencies": { "@opentui/core": ">=0.1.96", "@opentui/solid": ">=0.1.96" }, "optionalPeers": ["@opentui/core", "@opentui/solid"] }, "sha512-N5lckFtYvEu2R8K1um//MIOTHsJHniF2kHoPIWPCrxKG5Jpismt1ISGzIiU3aKI2ht/9VgcqKPC5oZFLdmpxPw=="],
-
-    "@opencode-ai/sdk": ["@opencode-ai/sdk@1.3.17", "https://bnpm.byted.org/@opencode-ai/sdk/-/sdk-1.3.17.tgz", { "dependencies": { "cross-spawn": "7.0.6" } }, "sha512-2+MGgu7wynqTBwxezR01VAGhILXlpcHDY/pF7SWB87WOgLt3kD55HjKHNj6PWxyY8n575AZolR95VUC3gtwfmA=="],
+    "@opencode-ai/sdk": ["@opencode-ai/sdk@1.4.0", "https://bnpm.byted.org/@opencode-ai/sdk/-/sdk-1.4.0.tgz", { "dependencies": { "cross-spawn": "7.0.6" } }, "sha512-mfa3MzhqNM+Az4bgPDDXL3NdG+aYOHClXmT6/4qLxf2ulyfPpMNHqb9Dfmo4D8UfmrDsPuJHmbune73/nUQnuw=="],
 
     "@types/node": ["@types/node@25.5.2", "https://bnpm.byted.org/@types/node/-/node-25.5.2.tgz", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-tO4ZIRKNC+MDWV4qKVZe3Ql/woTnmHDr5JD8UI5hn2pwBrHEwOEMZK7WlNb5RKB6EoJ02gwmQS9OrjuFnZYdpg=="],
 
@@ -91,7 +88,7 @@
 
     "transform-spread-iterable": ["transform-spread-iterable@1.4.1", "https://bnpm.byted.org/transform-spread-iterable/-/transform-spread-iterable-1.4.1.tgz", { "dependencies": { "curry": "^1.2.0" } }, "sha512-/GnF26X3zC8wfWyRzvuXX/Vb31TrU3Rwipmr4MC5hTi6X/yOXxXUSw4+pcHmKJ2+0KRrcS21YWZw77ukhVJBdQ=="],
 
-    "typescript": ["typescript@5.9.3", "https://bnpm.byted.org/typescript/-/typescript-5.9.3.tgz", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+    "typescript": ["typescript@5.9.3", "https://bnpm.byted.org/typescript/-/typescript-5.9.3.tgz", { "bin": { "tsserver": "bin/tsserver", "tsc": "bin/tsc" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "undici-types": ["undici-types@7.18.2", "https://bnpm.byted.org/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
 
