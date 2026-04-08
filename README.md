@@ -134,7 +134,7 @@ The main agent comes with 8 composable system prompt sections derived from Claud
 | **ccx-general-purpose** | read-write | on | Multi-strategy worker for tasks outside other specialists |
 | **ccx-coordinator** | orchestrator | off | Decomposes complex work into Research, Synthesis, Implementation, Verification across parallel workers. Tool surface is restricted to `task` + `question` |
 
-### 10 Runtime Hooks
+### 12 Runtime Hooks
 
 ccx uses every major hook point in the OpenCode plugin API to dynamically shape agent behavior:
 
@@ -149,7 +149,7 @@ ccx uses every major hook point in the OpenCode plugin API to dynamically shape 
 
 | Hook | What it does |
 |------|-------------|
-| **chat.message** | Tracks file edits across the session for verification threshold detection |
+| **chat.message** | Tracks file edits across the session for verification threshold detection, and routes inline session-workflow commands (`/ccx-fork`, `/ccx-bg`, `/ccx-fullctx`, `/ccx-bg-status`) |
 | **chat.params** | Tunes temperature/topP per agent — low for plan/verification (precision), higher for explore (creativity) |
 | **experimental.chat.system.transform** | Dynamically injects project instructions (CLAUDE.md), session context (edited files list), and verification reminders into the system prompt |
 | **tool.definition** | Appends safety rules to bash/edit/write tool descriptions, usage hints to glob/grep/read |
@@ -159,9 +159,22 @@ ccx uses every major hook point in the OpenCode plugin API to dynamically shape 
 
 | Hook | What it does |
 |------|-------------|
-| **tool.execute.before** | Risk Guard — flags `rm -rf`, `git push --force`, `DROP TABLE`, and other destructive patterns |
+| **tool.execute.before** | Two stages: (1) Context-Bundle injects cwd / git snapshot / recently changed files into `task` tool args so subagents share a baseline; (2) Risk Guard flags `rm -rf`, `git push --force`, `DROP TABLE`, and other destructive patterns |
 | **tool.execute.after** | Tracks file edits, feeds the dynamic verification reminder system |
 | **experimental.session.compacting** | Customizes context compaction to preserve: original task, implementation plan, edited files, verification status, architectural decisions |
+
+#### Session Workflow Commands
+
+ccx exposes inline commands inside any chat message. They drive the underlying OpenCode session APIs directly so you can branch, dispatch, and replay work without waiting for the main agent to finish its turn:
+
+| Command | Backed by | Purpose |
+|---------|-----------|---------|
+| `/ccx-fork [messageID]` | `POST /session/{id}/fork` | Fork the current session at the latest message (or at an explicit `messageID`) for what-if branching |
+| `/ccx-bg [agent] <prompt>` | `POST /session/{id}/prompt_async` | Queue a background prompt against the current session, optionally targeting a specific agent |
+| `/ccx-fullctx <agent> <prompt>` | `POST /session/{id}/fork` + `POST /session/{id}/prompt_async` | Create a fork-child session that inherits full parent context, then dispatch the subtask asynchronously to the named agent |
+| `/ccx-bg-status [taskID]` | in-memory task registry + `GET /session/{id}/message` | Show recent background tasks, or inspect one task and refresh its running/completed/failed state |
+
+All commands are opt-in via `subagent_orchestration.session_workflows.enabled` and the literals are configurable.
 
 ---
 
@@ -206,6 +219,8 @@ With the default ccx config shown below, workflow behavior is aligned to Claude 
 - recursive subagent delegation is discouraged by default
 - strict mandatory verification contract is off by default (opt-in)
 - when enabled, coordinator runs orchestration-only with a constrained tool surface (`task` + `question`)
+- every dispatched subagent receives an automatically injected context bundle (cwd / git snapshot / recently changed files) so it starts from the same baseline as the parent
+- inline `/ccx-fork`, `/ccx-bg`, `/ccx-fullctx`, and `/ccx-bg-status` commands let users branch sessions, queue background prompts, dispatch full-context fork subtasks, and inspect async task state
 
 This is behavior-level parity, not engine-level identity. Engine internals (runtime schedulers, fork execution model, feature-flag infrastructure) are different and remain outside plugin scope.
 
@@ -301,7 +316,21 @@ Example:
   "subagent_orchestration": {
     "explore_min_queries": 3,
     "coordinator_enabled": false,
-    "allow_subagent_delegation": false
+    "allow_subagent_delegation": false,
+    "context_bundle": {
+      "enabled": true,
+      "include_cwd": true,
+      "include_git": true,
+      "include_recent_files": true,
+      "max_recent_files": 8
+    },
+    "session_workflows": {
+      "enabled": true,
+      "fork_command": "/ccx-fork",
+      "background_command": "/ccx-bg",
+      "full_context_command": "/ccx-fullctx",
+      "status_command": "/ccx-bg-status"
+    }
   }
 }
 ```
@@ -320,6 +349,16 @@ Example:
 | `subagent_orchestration.explore_min_queries` | `number` | `3` | Escalate to `ccx-explore` when directed lookup likely needs more than this query count |
 | `subagent_orchestration.coordinator_enabled` | `boolean` | `false` | Register and advertise `ccx-coordinator` subagent |
 | `subagent_orchestration.allow_subagent_delegation` | `boolean` | `false` | Permit subagents to delegate further. When `false`, runtime recursion guard blocks nested `task` delegation from `ccx-*` subagents unless explicit delegation-approval metadata is present |
+| `subagent_orchestration.context_bundle.enabled` | `boolean` | `true` | Inject a shared context bundle (cwd, git snapshot, recently changed files) into `task` tool args before execution |
+| `subagent_orchestration.context_bundle.include_cwd` | `boolean` | `true` | Include the working directory in the injected bundle |
+| `subagent_orchestration.context_bundle.include_git` | `boolean` | `true` | Include the per-session git snapshot in the injected bundle |
+| `subagent_orchestration.context_bundle.include_recent_files` | `boolean` | `true` | Include `git ls-files --modified --others` output in the injected bundle |
+| `subagent_orchestration.context_bundle.max_recent_files` | `number` | `8` | Cap the number of recent files included in the bundle |
+| `subagent_orchestration.session_workflows.enabled` | `boolean` | `true` | Enable inline session workflow commands (fork, background, full-context) in user messages |
+| `subagent_orchestration.session_workflows.fork_command` | `string` | `/ccx-fork` | Command literal that triggers `session.fork`. Optional argument: explicit `messageID` to fork at |
+| `subagent_orchestration.session_workflows.background_command` | `string` | `/ccx-bg` | Command literal that triggers `session.promptAsync`. Usage: `/ccx-bg [agent] <prompt>` |
+| `subagent_orchestration.session_workflows.full_context_command` | `string` | `/ccx-fullctx` | Command literal that forks the session and dispatches a full-context subtask via `session.fork` + `session.promptAsync`. Usage: `/ccx-fullctx <agent> <prompt>` |
+| `subagent_orchestration.session_workflows.status_command` | `string` | `/ccx-bg-status` | Command literal that lists background tasks or shows status for one task ID |
 
 ---
 
@@ -331,9 +370,12 @@ ccx/
 │   ├── index.ts              # Plugin entry — composes everything
 │   ├── prompts/              # 8 system prompt sections + composer
 │   ├── agents/               # 5 subagent definitions with tailored prompts
-│   ├── hooks/                # 10 runtime hooks
+│   ├── hooks/                # 12 runtime hooks
 │   │   ├── config-handler.ts         # Agent registration
 │   │   ├── risk-guard.ts             # Destructive command detection
+│   │   ├── context-bundle.ts         # Inject cwd/git/recent-files into task tool args
+│   │   ├── session-workflows.ts      # /ccx-fork, /ccx-bg, /ccx-fullctx, /ccx-bg-status commands
+│   │   ├── bg-tasks.ts               # Background task lifecycle registry
 │   │   ├── verification-reminder.ts  # Edit tracking + nudge
 │   │   ├── environment-context.ts    # Session environment capture
 │   │   ├── dynamic-system-prompt.ts  # Per-turn system prompt injection

@@ -6,12 +6,14 @@ import { createChatMessageHook } from "../hooks/chat-message"
 import { createChatParamsHook } from "../hooks/chat-params"
 import { createCompactionHook } from "../hooks/compaction"
 import { createConfigHook } from "../hooks/config-handler"
+import { createContextBundleHook } from "../hooks/context-bundle"
 import { createDynamicSystemPrompt } from "../hooks/dynamic-system-prompt"
 import { createEnvironmentContext } from "../hooks/environment-context"
 import { createGitContextHook } from "../hooks/git-context"
 import { createIdleCompactionHook, recordSessionTurn } from "../hooks/idle-compaction"
 import { createMessageTransformHook } from "../hooks/message-transform"
 import { createRiskGuard } from "../hooks/risk-guard"
+import { createSessionWorkflowsHook } from "../hooks/session-workflows"
 import { createToolDefinitionHook } from "../hooks/tool-definition"
 import { createVerificationReminder } from "../hooks/verification-reminder"
 import { createAgentTools } from "./tool-registry"
@@ -42,11 +44,13 @@ export function createPluginInterface(args: {
 
   const configHook = createConfigHook(config, ctx.directory)
   const riskGuard = createRiskGuard(config)
+  const contextBundle = createContextBundleHook({ config, directory: ctx.directory })
   const verificationReminder = createVerificationReminder(config)
   const environmentContext = createEnvironmentContext(ctx.directory)
   const gitContext = createGitContextHook(ctx.directory)
   const dynamicSystemPrompt = createDynamicSystemPrompt(config, ctx.directory)
   const chatMessageHook = createChatMessageHook(config)
+  const sessionWorkflows = createSessionWorkflowsHook({ config, client: ctx.client })
   const chatParamsHook = createChatParamsHook()
   const compactionHook = createCompactionHook()
   const toolDefinitionHook = createToolDefinitionHook()
@@ -57,7 +61,10 @@ export function createPluginInterface(args: {
     config: configHook,
     tool: createAgentTools(config),
 
-    "tool.execute.before": riskGuard,
+    "tool.execute.before": async (input, output) => {
+      await contextBundle(input, output)
+      await riskGuard(input, output)
+    },
 
     "tool.execute.after": async (input, output) => {
       await verificationReminder(input, output)
@@ -74,6 +81,7 @@ export function createPluginInterface(args: {
 
     "chat.message": async (input, output) => {
       await chatMessageHook(input, output)
+      await sessionWorkflows(input, output)
       if (input.sessionID) {
         recordSessionTurn(input.sessionID)
         await idleCompaction.onChatMessage(input.sessionID)
