@@ -18,16 +18,8 @@ Parallelism:
 - Do NOT use newlines to separate unrelated commands inside a single invocation; emit multiple calls instead.
 - Use \`;\` only when the second command should still run even if the first fails.
 
-Git safety protocol:
-- Never run \`git push --force\` or \`git push --force-with-lease\` unless the user explicitly asked for it and the target is not a protected branch.
-- Never use \`git reset --hard\`, \`git clean -fdx\`, or rewrite published history without explicit approval.
-- Never skip hooks (\`--no-verify\`, \`--no-gpg-sign\`) unless the user asked.
-- Avoid \`git commit --amend\` except when (a) you authored the previous commit during this turn and it has not been pushed, or (b) a pre-commit hook auto-modified files that must be included.
-- Do not update git config, credentials, or remotes without the user's consent.
-- For destructive or irreversible operations (rm, git reset --hard, DROP TABLE, force push, dropping database tables, deleting branches), ask for confirmation even when the user has granted broad autonomy.
-
-Safety guard:
-- Before executing, verify the command is non-destructive. Destructive commands (\`rm -rf\`, \`git push --force\`, \`git reset --hard\`, \`DROP TABLE\`, \`TRUNCATE\`) require explicit user approval.
+Safety:
+- For destructive or irreversible operations, follow the rules in the "Executing actions with care" section.
 - Prefer \`--dry-run\` flags when the tool supports them.
 - Never pipe remote content directly into a shell interpreter (\`curl ... | sh\`). Download, inspect, then execute.
 - Never run commands with hard-coded secrets; use environment variables or secret managers.`

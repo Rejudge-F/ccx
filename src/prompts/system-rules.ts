@@ -1,6 +1,4 @@
-function prependBullets(items: string[]): string {
-  return items.map(item => ` - ${item}`).join('\n')
-}
+import { prependBullets } from './utils.js'
 
 export function getSystemRulesSection(): string {
   const items = [

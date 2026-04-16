@@ -5,7 +5,7 @@ import {
   type EnvironmentInfo as EnvInfo,
 } from './environment.js'
 import { getIntroSection } from './intro.js'
-import { getOutputEfficiencySection } from './output-efficiency.js'
+// output-efficiency merged into tone-style
 import { getSystemRulesSection } from './system-rules.js'
 import { getToneStyleSection } from './tone-style.js'
 import {
@@ -20,8 +20,8 @@ const DISABLED_SECTION_ALIASES: Record<string, string> = {
   using_tools: 'using-tools',
   'tone-style': 'tone-style',
   tone_style: 'tone-style',
-  'output-efficiency': 'output-efficiency',
-  output_efficiency: 'output-efficiency',
+  'output-efficiency': 'tone-style',
+  output_efficiency: 'tone-style',
 }
 
 function normalizeDisabledSectionIDs(ids: string[] | undefined): string[] {
@@ -68,11 +68,7 @@ export async function composeSystemPrompt(options: {
       kind: 'static',
       resolve: () => getToneStyleSection(),
     }),
-    createPromptSection({
-      id: 'output-efficiency',
-      kind: 'static',
-      resolve: () => getOutputEfficiencySection(),
-    }),
+    // output-efficiency merged into tone-style
     createPromptSection({
       id: 'environment',
       kind: 'static',

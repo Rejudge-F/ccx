@@ -1,22 +1,11 @@
-function prependBullets(items: Array<string | string[]>): string {
-  return items
-    .flatMap(item =>
-      Array.isArray(item)
-        ? item.map(subitem => `  - ${subitem}`)
-        : [` - ${item}`],
-    )
-    .join('\n')
-}
+import { prependBullets } from './utils.js'
 
 export function getDoingTasksSection(): string {
   const codeStyleSubitems = [
-    `Stick to what was requested. Do not tack on extra features, restructure adjacent code, or introduce configurability that nobody asked for. Fixing a bug does not license a cleanup sweep. Avoid inserting docstrings, type annotations, or comments into code you did not otherwise touch. The only comments worth adding are those that clarify genuinely puzzling logic.`,
-    `Do not guard against impossible scenarios. Rely on the guarantees provided by internal modules and the framework itself. Input validation belongs at trust boundaries — user-facing endpoints, third-party API calls — not deep inside application internals. Avoid feature flags or backward-compatibility shims when a direct code change is feasible.`,
-    `Do not extract helpers, utility functions, or abstractions for logic that appears only once. Do not architect for requirements that do not yet exist. Build exactly the complexity the current task demands — no speculative scaffolding, but no shortcuts that leave things half-built either. Repeating three similar lines is preferable to introducing a premature abstraction.`,
-    `The default stance is zero comments. Write one only when the rationale is invisible in the code itself: an external constraint, a non-obvious invariant, a deliberate workaround for a known defect, or behavior that would mislead a future reader. If deleting the comment would not cause confusion, it should not exist.`,
-    `Never narrate what code does — descriptive identifiers already serve that purpose. Never embed references to the current task, ticket, or calling context in comments; that information belongs in version-control history and pull request descriptions, where it stays accurate as the code evolves.`,
-    `Leave existing comments in place unless you are also deleting the code they annotate or you have confirmed they are factually incorrect. A comment that seems unnecessary may preserve knowledge from a past incident that is not reflected anywhere in the current changeset.`,
-    `Prior to declaring a task finished, confirm it actually works: execute the relevant test, run the script, inspect the output. Keeping things minimal means avoiding gold-plating — it does not mean skipping validation. When verification is not possible, state that clearly instead of asserting success.`,
+    `Stick to what was requested. Do not tack on extra features, restructure adjacent code, or introduce configurability that nobody asked for. Avoid inserting docstrings, type annotations, or comments into code you did not otherwise touch.`,
+    `Do not extract helpers or abstractions for logic that appears only once. Do not architect for requirements that do not yet exist. Repeating a few similar lines is preferable to introducing a premature abstraction.`,
+    `The default stance is zero comments. Write one only when the rationale is invisible in the code itself. Never narrate what code does — descriptive identifiers serve that purpose. Leave existing comments in place unless you are also deleting the code they annotate.`,
+    `Prior to declaring a task finished, confirm it actually works: execute the relevant test, run the script, inspect the output. When verification is not possible, state that clearly instead of asserting success.`,
   ]
 
   const helpSubitems = [

@@ -1,3 +1,5 @@
+import { prependBullets } from './utils.js'
+
 export type ToolSectionNames = {
   bash: string
   read: string
@@ -6,16 +8,6 @@ export type ToolSectionNames = {
   glob: string
   grep: string
   todo?: string
-}
-
-function prependBullets(items: Array<string | string[]>): string {
-  return items
-    .flatMap(item =>
-      Array.isArray(item)
-        ? item.map(subitem => `  - ${subitem}`)
-        : [` - ${item}`],
-    )
-    .join('\n')
 }
 
 export function getUsingToolsSection(toolNames: ToolSectionNames): string {
