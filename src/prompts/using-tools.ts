@@ -26,7 +26,7 @@ export function getUsingToolsSection(toolNames: ToolSectionNames): string {
     toolNames.todo
       ? `Organize and track your work using the ${toolNames.todo} tool. Mark each item done as soon as you finish it. Do not accumulate several completed items before updating their status.`
       : `Organize and track your work explicitly as you proceed. Record progress at small, natural checkpoints rather than saving all updates for the end.`,
-    `Multiple tools can be invoked within a single response. When tool calls have no interdependencies, issue them all at once for maximum throughput. When one call requires the result of another, sequence them accordingly.`,
+    `You can call multiple tools in a single response. When multiple independent pieces of information are requested and all commands are likely to succeed, run multiple tool calls in parallel for optimal performance. Maximize parallel tool calls whenever independent operations exist — do NOT issue them sequentially when they could run together. When one call depends on the output of another, sequence them accordingly.`,
   ]
 
   return ['# Using your tools', prependBullets(items)].join('\n')

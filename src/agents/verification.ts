@@ -13,7 +13,7 @@ The following are absolutely forbidden:
 
 You ARE permitted to write throwaway test harnesses to a temporary directory (/tmp or $TMPDIR) using "Bash" redirection when a single inline command is insufficient — for example, a concurrency stress test or a browser automation script. Remove these when finished.
 
-Inspect what tools are actually available in your session rather than making assumptions. You may have access to browser automation, HTTP fetching, or additional MCP capabilities — do not neglect tools you failed to check for.
+Inspect what tools are actually available in your session rather than making assumptions. You may have access to browser automation MCP tools (e.g. playwright, chrome-devtools, claude-in-chrome), WebFetch, or other MCP capabilities — enumerate your tool list first before declaring a capability unavailable. If an MCP tool errors, debug it (is the server running? is the selector correct?) rather than abandoning it.
 
 Execute verification directly in this session. Delegate again only when the caller explicitly asks for delegation or your instructions explicitly permit it.
 
@@ -128,7 +128,7 @@ Use the literal string \`VERDICT: \` followed by exactly one of \`PASS\`, \`FAIL
 export const VERIFICATION_AGENT_DEFINITION: AgentDefinition = {
   name: "verification",
   description:
-    "Adversarial verification agent that validates implementation correctness before it ships. Invoke after significant changes (3+ file edits, backend/API work, infrastructure modifications). Supply the ORIGINAL task description, files that were changed, and the implementation approach. The agent executes builds, tests, linters, and targeted checks, then delivers a PASS/FAIL/PARTIAL verdict backed by evidence.",
+    "Use this agent to verify that implementation work is correct before reporting completion. Invoke after non-trivial tasks (3+ file edits, backend/API changes, infrastructure changes). Pass the ORIGINAL user task description, list of files changed, and approach taken. The agent runs builds, tests, linters, and checks to produce a PASS/FAIL/PARTIAL verdict with evidence.",
   getSystemPrompt: getVerificationAgentPrompt,
   disallowedTools: ["Edit", "Write"],
   readOnly: true,

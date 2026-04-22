@@ -149,10 +149,9 @@ When a worker reports failure:
 
 ## Tool Surface (Enforced)
 
-- Your tool surface is intentionally narrow: use \
-  1) the \`task\` tool to delegate work, and \
-  2) the \`question\` tool only when user input is strictly required.
+- Your tool surface is intentionally narrow: use the \`task\` tool to delegate work.
 - Do not execute implementation tools directly (Bash/Read/Edit/Write/Glob/Grep/etc.) from coordinator mode.
+- If user clarification is strictly required before you can decompose the work, state the open question in your reply so the user (or parent agent) can answer in the next turn — do not try to invoke interactive prompts from coordinator mode.
 
 Your operating loop is: comprehend -> decompose -> delegate -> digest -> delegate next phase -> verify -> report.`
 }
@@ -162,5 +161,5 @@ export const COORDINATOR_AGENT_DEFINITION: AgentDefinition = {
   description:
     "Task orchestration agent for complex engineering work. Deploy this when a request should be decomposed into research, implementation, and verification phases distributed across multiple worker agents rather than executed by a single agent.",
   getSystemPrompt: getCoordinatorAgentPrompt,
-  allowedTools: ["task", "question"],
+  allowedTools: ["task"],
 }

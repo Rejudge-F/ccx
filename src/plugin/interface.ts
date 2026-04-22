@@ -2,7 +2,6 @@ import type { Plugin } from "@opencode-ai/plugin"
 
 import type { OhMyCCAgentConfig } from "../config/schema"
 
-import { createChatMessageHook } from "../hooks/chat-message"
 import { createChatParamsHook } from "../hooks/chat-params"
 import { createCompactionHook } from "../hooks/compaction"
 import { createConfigHook } from "../hooks/config-handler"
@@ -13,6 +12,7 @@ import { createGitContextHook } from "../hooks/git-context"
 import { createIdleCompactionHook, recordSessionTurn } from "../hooks/idle-compaction"
 import { createMessageTransformHook } from "../hooks/message-transform"
 import { createRiskGuard } from "../hooks/risk-guard"
+import { createSessionAgentTracker } from "../hooks/session-agent"
 import { createSessionWorkflowsHook } from "../hooks/session-workflows"
 import { createSsrfGuard } from "../hooks/ssrf-guard"
 import { createToolDefinitionHook } from "../hooks/tool-definition"
@@ -51,7 +51,7 @@ export function createPluginInterface(args: {
   const environmentContext = createEnvironmentContext(ctx.directory)
   const gitContext = createGitContextHook(ctx.directory)
   const dynamicSystemPrompt = createDynamicSystemPrompt(config, ctx.directory)
-  const chatMessageHook = createChatMessageHook(config)
+  const sessionAgentTracker = createSessionAgentTracker()
   const sessionWorkflows = createSessionWorkflowsHook({ config, client: ctx.client })
   const chatParamsHook = createChatParamsHook()
   const compactionHook = createCompactionHook(config)
@@ -83,7 +83,7 @@ export function createPluginInterface(args: {
     },
 
     "chat.message": async (input, output) => {
-      await chatMessageHook(input, output)
+      await sessionAgentTracker(input, output)
       await sessionWorkflows(input, output)
       if (input.sessionID) {
         recordSessionTurn(input.sessionID)

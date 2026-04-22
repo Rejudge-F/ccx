@@ -25,6 +25,10 @@ ${SHARED_GUIDELINES}`
 export const GENERAL_PURPOSE_AGENT_DEFINITION: AgentDefinition = {
   name: "general-purpose",
   description:
-    "Versatile agent for investigating complex questions, locating code, and handling multi-step workflows. Ideal when you need to find a specific symbol or file but anticipate that multiple search attempts may be needed before landing on the right result.",
+    "General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries use this agent to perform the search for you.",
   getSystemPrompt: getGeneralPurposeAgentPrompt,
+  // general-purpose is the catch-all read-write worker; it inherits the full
+  // tool surface available to the primary agent. Leaving both allowedTools
+  // and disallowedTools unset yields `buildToolRestrictions` => undefined,
+  // which tells opencode to apply the default (no restriction).
 }

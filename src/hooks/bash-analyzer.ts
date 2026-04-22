@@ -469,6 +469,36 @@ export function analyzeBashCommand(
   return dedupe(findings)
 }
 
+/**
+ * Extract the top-level command names from a bash source string, with wrapper
+ * commands (sudo, xargs, env, timeout, …) unwrapped to the inner command.
+ *
+ * Used by the risk-guard to enforce a read-only command allowlist for agents
+ * that declared `readOnly: true`. Returns lowercased command names only —
+ * arguments and redirections are not included in the returned list.
+ */
+export function extractCommandNames(source: string): string[] {
+  const trimmed = source.trim()
+  if (!trimmed) return []
+
+  let commands: ExtractedCommand[] = []
+  try {
+    const ast = parse(trimmed)
+    commands = collectCommands(ast)
+  } catch {
+    commands = fallbackTokenize(trimmed)
+  }
+
+  const names: string[] = []
+  for (const cmd of commands) {
+    const inner = unwrapWrapper(cmd)
+    if (inner.name) {
+      names.push(inner.name.toLowerCase())
+    }
+  }
+  return names
+}
+
 function fallbackTokenize(source: string): ExtractedCommand[] {
   const statements = source.split(/[;&|]{1,2}/)
   const out: ExtractedCommand[] = []

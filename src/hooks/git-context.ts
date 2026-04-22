@@ -3,12 +3,14 @@ import { promisify } from "node:util"
 
 const execFileAsync = promisify(execFile)
 const MAX_STATUS_CHARS = 2000
+const SNAPSHOT_TTL_MS = 15_000
 
 type GitSnapshot = {
   branch: string
   mainBranch: string
   status: string
   recentCommits: string
+  capturedAt: number
 }
 
 const snapshotBySession = new Map<string, GitSnapshot>()
@@ -40,17 +42,70 @@ async function resolveDefaultBranch(cwd: string): Promise<string> {
   }
 }
 
-export function getGitSnapshotSection(sessionID: string): string | null {
-  const snapshot = snapshotBySession.get(sessionID)
-  if (!snapshot) return null
+async function captureSnapshot(cwd: string): Promise<GitSnapshot | null> {
+  try {
+    const [branch, mainBranch, statusRaw, recentCommits] = await Promise.all([
+      runGit(cwd, ["rev-parse", "--abbrev-ref", "HEAD"]),
+      resolveDefaultBranch(cwd),
+      runGit(cwd, ["--no-optional-locks", "status", "--short"]),
+      runGit(cwd, ["--no-optional-locks", "log", "--oneline", "-n", "5"]),
+    ])
+
+    const status = statusRaw.length > MAX_STATUS_CHARS
+      ? `${statusRaw.slice(0, MAX_STATUS_CHARS)}\n... (truncated because it exceeds 2k characters)`
+      : statusRaw
+
+    return {
+      branch,
+      mainBranch,
+      status,
+      recentCommits,
+      capturedAt: Date.now(),
+    }
+  } catch {
+    return null
+  }
+}
+
+function formatSnapshot(snapshot: GitSnapshot): string {
+  const ageSeconds = Math.max(0, Math.round((Date.now() - snapshot.capturedAt) / 1000))
+  const freshnessNote = ageSeconds <= 30
+    ? "Fresh snapshot."
+    : `Snapshot captured ${ageSeconds}s ago — may be slightly stale.`
+
   return [
     "# Git Context",
-    "This is a snapshot at the start of the session and may be stale now.",
+    freshnessNote,
     `Current branch: ${snapshot.branch}`,
     `Main branch: ${snapshot.mainBranch}`,
     `Status:\n${snapshot.status || "(clean)"}`,
     `Recent commits:\n${snapshot.recentCommits || "(none)"}`,
   ].join("\n\n")
+}
+
+export function getGitSnapshotSection(sessionID: string): string | null {
+  const snapshot = snapshotBySession.get(sessionID)
+  if (!snapshot) return null
+  return formatSnapshot(snapshot)
+}
+
+/**
+ * Refresh the git snapshot for a session if it's older than SNAPSHOT_TTL_MS.
+ * Called lazily from context-bundle so subagents see current git state rather
+ * than a stale session.created snapshot from hours ago.
+ */
+export async function refreshGitSnapshot(
+  sessionID: string,
+  cwd: string,
+): Promise<void> {
+  const existing = snapshotBySession.get(sessionID)
+  if (existing && Date.now() - existing.capturedAt < SNAPSHOT_TTL_MS) {
+    return
+  }
+  const refreshed = await captureSnapshot(cwd)
+  if (refreshed) {
+    snapshotBySession.set(sessionID, refreshed)
+  }
 }
 
 export function createGitContextHook(directory: string) {
@@ -66,26 +121,9 @@ export function createGitContextHook(directory: string) {
         : undefined
     if (!sessionID || snapshotBySession.has(sessionID)) return
 
-    try {
-      const [branch, mainBranch, statusRaw, recentCommits] = await Promise.all([
-        runGit(directory, ["rev-parse", "--abbrev-ref", "HEAD"]),
-        resolveDefaultBranch(directory),
-        runGit(directory, ["--no-optional-locks", "status", "--short"]),
-        runGit(directory, ["--no-optional-locks", "log", "--oneline", "-n", "5"]),
-      ])
-
-      const status = statusRaw.length > MAX_STATUS_CHARS
-        ? `${statusRaw.slice(0, MAX_STATUS_CHARS)}\n... (truncated because it exceeds 2k characters)`
-        : statusRaw
-
-      snapshotBySession.set(sessionID, {
-        branch,
-        mainBranch,
-        status,
-        recentCommits,
-      })
-    } catch {
-      // ignore git snapshot failures
+    const snapshot = await captureSnapshot(directory)
+    if (snapshot) {
+      snapshotBySession.set(sessionID, snapshot)
     }
   }
 }
