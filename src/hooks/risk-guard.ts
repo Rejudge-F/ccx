@@ -11,8 +11,11 @@ const TASK_LAUNCH_TOOL_NAMES = new Set(["task"])
 const BASH_TOOL_NAMES = new Set(["bash", "shell", "sh", "exec"])
 const SQL_TOOL_NAMES = new Set(["sql", "query", "db", "database"])
 
-function isGuardedSubagentName(value: unknown): boolean {
-  return typeof value === "string" && value.startsWith("ccx-") && value !== "ccx-coordinator"
+function isGuardedSubagentName(value: unknown, agentName: string): boolean {
+  const prefix = `${agentName}-`
+  return typeof value === "string"
+    && value.startsWith(prefix)
+    && value !== `${agentName}-coordinator`
 }
 
 function hasExplicitDelegationApproval(value: unknown): boolean {
@@ -103,7 +106,7 @@ export function createRiskGuard(config: OhMyCCAgentConfig) {
       const currentAgent = directAgent ?? (sessionID ? getSessionAgent(sessionID) : undefined)
       const approved = hasExplicitDelegationApproval(input) || hasExplicitDelegationApproval(output.args)
 
-      if (isGuardedSubagentName(currentAgent) && !approved) {
+      if (isGuardedSubagentName(currentAgent, config.agent_name) && !approved) {
         output.blocked = true
         output.warning = "Nested subagent delegation is blocked by runtime policy. Execute directly in the current subagent, or provide explicit delegation approval metadata."
         const metadata = isRecord(output.metadata) ? output.metadata : {}

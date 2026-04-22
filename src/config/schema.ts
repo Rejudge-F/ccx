@@ -49,10 +49,12 @@ const contextBundleSchema = z.object({
 
 const sessionWorkflowsSchema = z.object({
   enabled: z.boolean().default(true),
-  fork_command: z.string().min(1).default("/ccx-fork"),
-  background_command: z.string().min(1).default("/ccx-bg"),
-  full_context_command: z.string().min(1).default("/ccx-fullctx"),
-  status_command: z.string().min(1).default("/ccx-bg-status"),
+  // `null` means "derive from agent_name" (e.g. agent_name=delta -> "/delta-fork").
+  // An explicit string always wins.
+  fork_command: z.string().min(1).nullable().default(null),
+  background_command: z.string().min(1).nullable().default(null),
+  full_context_command: z.string().min(1).nullable().default(null),
+  status_command: z.string().min(1).nullable().default(null),
 })
 
 const subagentOrchestrationSchema = z.object({
@@ -68,15 +70,23 @@ const subagentOrchestrationSchema = z.object({
   }),
   session_workflows: sessionWorkflowsSchema.default({
     enabled: true,
-    fork_command: "/ccx-fork",
-    background_command: "/ccx-bg",
-    full_context_command: "/ccx-fullctx",
-    status_command: "/ccx-bg-status",
+    fork_command: null,
+    background_command: null,
+    full_context_command: null,
+    status_command: null,
   }),
 })
 
 export const configSchema = z.object({
   enabled: z.boolean().default(true),
+  // Name used for the primary agent, subagent prefix, and slash commands.
+  // Defaults to "ccx"; set to e.g. "delta" to rebrand in the current workspace.
+  // Must match opencode's agent-name rules (lowercase letters, digits, hyphens).
+  agent_name: z
+    .string()
+    .min(1)
+    .regex(/^[a-z][a-z0-9-]*$/, "agent_name must be lowercase kebab-case")
+    .default("ccx"),
   disabled_sections: z.array(z.string()).default([]),
   disabled_hooks: z.array(z.string()).default([]),
   output_style: z.string().min(1).nullable().default(null),
@@ -123,10 +133,10 @@ export const configSchema = z.object({
     },
     session_workflows: {
       enabled: true,
-      fork_command: "/ccx-fork",
-      background_command: "/ccx-bg",
-      full_context_command: "/ccx-fullctx",
-      status_command: "/ccx-bg-status",
+      fork_command: null,
+      background_command: null,
+      full_context_command: null,
+      status_command: null,
     },
   }),
 })

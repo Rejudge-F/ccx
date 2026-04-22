@@ -83,5 +83,30 @@ export function loadConfig(directory: string): OhMyCCAgentConfig {
   const projectConfigPath = join(directory, CONFIG_RELATIVE_PATH)
   const userConfigPath = join(homedir(), ".config", "opencode", "ccx.json")
 
-  return readConfigFile(projectConfigPath) ?? readConfigFile(userConfigPath) ?? defaults
+  const loaded = readConfigFile(projectConfigPath) ?? readConfigFile(userConfigPath) ?? defaults
+  return resolveAgentNameDerivedDefaults(loaded)
+}
+
+/**
+ * Fill in slash-command defaults that are derived from `agent_name` when the
+ * user didn't pick an explicit value. This lets `agent_name: "delta"` rename
+ * /ccx-fork -> /delta-fork automatically.
+ */
+function resolveAgentNameDerivedDefaults(config: OhMyCCAgentConfig): OhMyCCAgentConfig {
+  const { agent_name } = config
+  const sw = config.subagent_orchestration.session_workflows
+
+  return {
+    ...config,
+    subagent_orchestration: {
+      ...config.subagent_orchestration,
+      session_workflows: {
+        ...sw,
+        fork_command: sw.fork_command ?? `/${agent_name}-fork`,
+        background_command: sw.background_command ?? `/${agent_name}-bg`,
+        full_context_command: sw.full_context_command ?? `/${agent_name}-fullctx`,
+        status_command: sw.status_command ?? `/${agent_name}-bg-status`,
+      },
+    },
+  }
 }

@@ -29,6 +29,6 @@ export function createChatMessageHook(_config: OhMyCCAgentConfig) {
       sessionAgentById.set(sessionID, agent)
     }
 
-    if (agent && !agent.startsWith("ccx")) return
+    if (agent && !agent.startsWith(_config.agent_name)) return
   }
 }

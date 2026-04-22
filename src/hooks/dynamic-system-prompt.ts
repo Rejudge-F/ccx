@@ -54,7 +54,7 @@ export function createDynamicSystemPrompt(config: OhMyCCAgentConfig, directory: 
           }
           const { editedFilesCount } = getVerificationState(sessionID)
           const spotCheckMinCommands = config.verification.spot_check_min_commands
-          return `# Verification Reminder\n\nYou have edited ${editedFilesCount} files in this session. It is recommended to run verification (via ccx-verification subagent) before declaring the task complete. If verifier returns PASS, you must re-run at least ${spotCheckMinCommands} commands from the verifier report and confirm outputs match before reporting completion.`
+          return `# Verification Reminder\n\nYou have edited ${editedFilesCount} files in this session. It is recommended to run verification (via ${config.agent_name}-verification subagent) before declaring the task complete. If verifier returns PASS, you must re-run at least ${spotCheckMinCommands} commands from the verifier report and confirm outputs match before reporting completion.`
         },
       }),
     ]

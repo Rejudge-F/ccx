@@ -43,19 +43,20 @@ function buildSubagentGuidance(config: OhMyCCAgentConfig): string {
   const exploreMinQueries = config.subagent_orchestration.explore_min_queries
   const spotCheckMinCommands = config.verification.spot_check_min_commands
   const enabledSubagents = getEnabledSubagentDefinitions(config)
+  const agentPrefix = config.agent_name
   const agentList = enabledSubagents.map(
-    (def) => `- **ccx-${def.name}**: ${def.description}`,
+    (def) => `- **${agentPrefix}-${def.name}**: ${def.description}`,
   ).join("\n")
 
   const whenToUse = [
-    `- Invoke the **task** tool with subagent_type \`ccx-explore\` for wide-ranging codebase exploration or in-depth research. For targeted lookups (a known file, class, or function name), use Glob or Grep directly — escalate to ccx-explore only when a simple search falls short or when the task clearly requires more than ${exploreMinQueries} queries.`,
-    "- Invoke the **task** tool with subagent_type `ccx-plan` when an implementation strategy should be designed before any code is written. The plan agent examines the codebase in read-only mode and produces a step-by-step approach with key files identified.",
-    "- Invoke the **task** tool with subagent_type `ccx-general-purpose` for multi-step work that does not fall under any other specialist's domain.",
+    `- Invoke the **task** tool with subagent_type \`${agentPrefix}-explore\` for wide-ranging codebase exploration or in-depth research. For targeted lookups (a known file, class, or function name), use Glob or Grep directly — escalate to ${agentPrefix}-explore only when a simple search falls short or when the task clearly requires more than ${exploreMinQueries} queries.`,
+    `- Invoke the **task** tool with subagent_type \`${agentPrefix}-plan\` when an implementation strategy should be designed before any code is written. The plan agent examines the codebase in read-only mode and produces a step-by-step approach with key files identified.`,
+    `- Invoke the **task** tool with subagent_type \`${agentPrefix}-general-purpose\` for multi-step work that does not fall under any other specialist's domain.`,
   ]
 
   if (config.subagent_orchestration.coordinator_enabled) {
     whenToUse.push(
-      "- Invoke the **task** tool with subagent_type `ccx-coordinator` for complex tasks best decomposed into research, implementation, and verification phases distributed across multiple workers.",
+      `- Invoke the **task** tool with subagent_type \`${agentPrefix}-coordinator\` for complex tasks best decomposed into research, implementation, and verification phases distributed across multiple workers.`,
     )
   }
 
@@ -81,12 +82,12 @@ function buildSubagentGuidance(config: OhMyCCAgentConfig): string {
 
 The rule: whenever non-trivial implementation occurs during your turn, an independent adversarial review must take place before you declare completion — whether you wrote the code yourself or a subagent did. You are the gatekeeper. Non-trivial is defined as: 3+ file edits, backend/API changes, or infrastructure changes.
 
-Launch the **task** tool with subagent_type \`ccx-verification\`. Supply the ORIGINAL user task description, the list of changed files, and the approach used. Your own review and commentary do NOT count — only the verification agent assigns a verdict; you may not self-assign PARTIAL.
+Launch the **task** tool with subagent_type \`${agentPrefix}-verification\`. Supply the ORIGINAL user task description, the list of changed files, and the approach used. Your own review and commentary do NOT count — only the verification agent assigns a verdict; you may not self-assign PARTIAL.
 
 - On **FAIL**: address the reported issue, then resume the verifier session with the failure details plus your correction. Iterate until PASS.
 - On **PASS**: perform a spot-check — re-execute at least ${spotCheckMinCommands} commands from the verifier's report and confirm outputs match. If any PASS step lacks a Command run block or the output differs, resume the verifier with the discrepancy.
 - On **PARTIAL**: communicate what passed and what remained unverifiable due to environment constraints.`
-    : "## Verification guidance\n\nFor significant implementation changes, prefer independent verification with subagent_type `ccx-verification` before reporting completion."
+    : `## Verification guidance\n\nFor significant implementation changes, prefer independent verification with subagent_type \`${agentPrefix}-verification\` before reporting completion.`
 
   return `# Subagent orchestration
 
@@ -129,7 +130,8 @@ export function createConfigHook(config: OhMyCCAgentConfig, directory: string) {
     const subagentGuidance = buildSubagentGuidance(config)
     const mainPrompt = [...systemSections, subagentGuidance].join("\n\n")
 
-    const ccx: Record<string, unknown> = {
+    const agentName = config.agent_name
+    const primaryAgent: Record<string, unknown> = {
       description: "CCX Agent — disciplined coding, risk-aware actions, verification-driven workflow with subagent orchestration.",
       mode: "primary",
       prompt: mainPrompt,
@@ -139,7 +141,7 @@ export function createConfigHook(config: OhMyCCAgentConfig, directory: string) {
     const enabledSubagents = getEnabledSubagentDefinitions(config)
     const subagents: Record<string, unknown> = {}
     for (const def of enabledSubagents) {
-      subagents[`ccx-${def.name}`] = {
+      subagents[`${agentName}-${def.name}`] = {
         description: def.description,
         mode: "subagent",
         prompt: def.getSystemPrompt(),
@@ -149,12 +151,12 @@ export function createConfigHook(config: OhMyCCAgentConfig, directory: string) {
 
     input.agent = {
       ...existingAgents,
-      ccx: ccx,
+      [agentName]: primaryAgent,
       ...subagents,
     }
 
     if (!input.default_agent) {
-      input.default_agent = "ccx"
+      input.default_agent = agentName
     }
   }
 }

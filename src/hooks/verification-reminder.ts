@@ -55,7 +55,8 @@ export function createVerificationReminder(config: OhMyCCAgentConfig) {
         : typeof rawArgs.subagentType === "string"
           ? rawArgs.subagentType.toLowerCase()
           : ""
-      if (subagentType === "ccx-verification" || subagentType === "verification") {
+      const verificationSubagent = `${config.agent_name}-verification`
+      if (subagentType === verificationSubagent || subagentType === "verification") {
         getSessionState(sessionID).verificationTriggered = true
       }
       return

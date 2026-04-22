@@ -164,6 +164,8 @@ function buildForkChildDirective(args: {
   agent?: string
   prompt: string
   parentSessionID: string
+  forkCommand: string
+  fullContextCommand: string
 }): string {
   const agentLine = args.agent ? `Target agent: ${args.agent}` : "Target agent: (inherit)"
   return [
@@ -171,7 +173,7 @@ function buildForkChildDirective(args: {
     "You are a ccx fork-child. You have inherited the full parent session context above.",
     "Rules:",
     "1. Treat the inherited conversation as background. Do NOT re-introduce yourself.",
-    "2. Do NOT fork again. Never invoke /ccx-fork or /ccx-fullctx from within this session.",
+    `2. Do NOT fork again. Never invoke ${args.forkCommand} or ${args.fullContextCommand} from within this session.`,
     "3. Focus strictly on the directive below. Report back concisely.",
     `Parent session: ${args.parentSessionID}`,
     agentLine,
@@ -259,8 +261,10 @@ async function dispatchBackgroundPrompt(args: {
   agent?: string
   prompt: string
   fullContext: boolean
+  forkCommand: string
+  fullContextCommand: string
 }): Promise<WorkflowStatus> {
-  const { client, targetSessionID, parentSessionID, agent, prompt, fullContext } = args
+  const { client, targetSessionID, parentSessionID, agent, prompt, fullContext, forkCommand, fullContextCommand } = args
   if (!client.session?.promptAsync) {
     return {
       ok: false,
@@ -279,7 +283,7 @@ async function dispatchBackgroundPrompt(args: {
   })
 
   const directive = fullContext
-    ? buildForkChildDirective({ agent, prompt, parentSessionID })
+    ? buildForkChildDirective({ agent, prompt, parentSessionID, forkCommand, fullContextCommand })
     : prompt
 
   try {
@@ -318,6 +322,7 @@ async function handleBackground(
   client: ClientLike,
   sessionID: string,
   rest: string,
+  commands: { forkCommand: string; fullContextCommand: string },
 ): Promise<WorkflowStatus> {
   const { agent, prompt } = parseAgentAndPrompt(rest)
   if (!prompt) {
@@ -330,6 +335,8 @@ async function handleBackground(
     agent,
     prompt,
     fullContext: false,
+    forkCommand: commands.forkCommand,
+    fullContextCommand: commands.fullContextCommand,
   })
 }
 
@@ -337,6 +344,7 @@ async function handleFullContext(
   client: ClientLike,
   sessionID: string,
   rest: string,
+  commands: { forkCommand: string; fullContextCommand: string },
 ): Promise<WorkflowStatus> {
   if (!client.session?.fork || !client.session.promptAsync) {
     return {
@@ -383,6 +391,8 @@ async function handleFullContext(
     agent,
     prompt,
     fullContext: true,
+    forkCommand: commands.forkCommand,
+    fullContextCommand: commands.fullContextCommand,
   })
 }
 
@@ -474,36 +484,42 @@ export function createSessionWorkflowsHook(args: {
     if (!input?.sessionID) return
     if (!output?.parts) return
 
+    // loader resolves these to non-null strings based on agent_name; narrow for TS.
+    const forkCommand = workflows.fork_command ?? `/${config.agent_name}-fork`
+    const backgroundCommand = workflows.background_command ?? `/${config.agent_name}-bg`
+    const fullContextCommand = workflows.full_context_command ?? `/${config.agent_name}-fullctx`
+    const statusCommand = workflows.status_command ?? `/${config.agent_name}-bg-status`
+
     const text = joinTextParts(output.parts)
     if (!text) return
 
-    const forkLine = findCommandLine(text, workflows.fork_command)
-    const backgroundLine = findCommandLine(text, workflows.background_command)
-    const fullContextLine = findCommandLine(text, workflows.full_context_command)
-    const statusLine = findCommandLine(text, workflows.status_command)
+    const forkLine = findCommandLine(text, forkCommand)
+    const backgroundLine = findCommandLine(text, backgroundCommand)
+    const fullContextLine = findCommandLine(text, fullContextCommand)
+    const statusLine = findCommandLine(text, statusCommand)
 
     if (!forkLine && !backgroundLine && !fullContextLine && !statusLine) return
 
     if (forkLine) {
-      const rest = forkLine.slice(workflows.fork_command.length)
+      const rest = forkLine.slice(forkCommand.length)
       const status = await handleFork(client, input.sessionID, rest)
       appendStatusPart(output, status.text)
     }
 
     if (backgroundLine) {
-      const rest = backgroundLine.slice(workflows.background_command.length)
-      const status = await handleBackground(client, input.sessionID, rest)
+      const rest = backgroundLine.slice(backgroundCommand.length)
+      const status = await handleBackground(client, input.sessionID, rest, { forkCommand, fullContextCommand })
       appendStatusPart(output, status.text)
     }
 
     if (fullContextLine) {
-      const rest = fullContextLine.slice(workflows.full_context_command.length)
-      const status = await handleFullContext(client, input.sessionID, rest)
+      const rest = fullContextLine.slice(fullContextCommand.length)
+      const status = await handleFullContext(client, input.sessionID, rest, { forkCommand, fullContextCommand })
       appendStatusPart(output, status.text)
     }
 
     if (statusLine) {
-      const rest = statusLine.slice(workflows.status_command.length)
+      const rest = statusLine.slice(statusCommand.length)
       const status = await handleStatus(client, input.sessionID, rest)
       appendStatusPart(output, status.text)
     }
