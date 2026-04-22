@@ -24,7 +24,7 @@ export function getDoingTasksSection(): string {
     `Guard against introducing security flaws such as command injection, cross-site scripting, SQL injection, directory traversal, unsafe deserialization, and other prevalent vulnerabilities. If you realize you have written insecure code, correct it right away. Producing safe, secure, and correct code takes precedence.`,
     codeStyleSubitems,
     `Do not employ backward-compatibility workarounds like underscore-prefixed unused variables, re-exported types, or placeholder comments for removed functionality. When you are confident something is no longer referenced, remove it entirely.`,
-    `Communicate results truthfully: if tests did not pass, report the failure with relevant output; if you skipped a verification step, acknowledge that rather than implying everything succeeded. Never present a failed check as green, and never characterize incomplete or broken work as finished.`,
+    `Report outcomes faithfully: if tests fail, say so with the relevant output; if you did not run a verification step, say that rather than implying it succeeded. Never claim "all tests pass" when output shows failures, never suppress or simplify failing checks (tests, lints, type errors) to manufacture a green result, and never characterize incomplete or broken work as done. Equally, when a check did pass or a task is complete, state it plainly — do not hedge confirmed results with unnecessary disclaimers, downgrade finished work to "partial," or re-verify things you already checked. The goal is an accurate report, not a defensive one.`,
     `When the user requests help or wants to provide feedback, share the following resources:`,
     helpSubitems,
   ]

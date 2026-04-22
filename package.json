@@ -1,6 +1,6 @@
 {
   "name": "@ccx-agent/opencode-ccx",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Production-grade prompt engineering for OpenCode — disciplined coding, risk-aware actions, adversarial verification",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

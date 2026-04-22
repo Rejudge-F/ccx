@@ -54,7 +54,19 @@ export function createDynamicSystemPrompt(config: OhMyCCAgentConfig, directory: 
           }
           const { editedFilesCount } = getVerificationState(sessionID)
           const spotCheckMinCommands = config.verification.spot_check_min_commands
-          return `# Verification Reminder\n\nYou have edited ${editedFilesCount} files in this session. It is recommended to run verification (via ${config.agent_name}-verification subagent) before declaring the task complete. If verifier returns PASS, you must re-run at least ${spotCheckMinCommands} commands from the verifier report and confirm outputs match before reporting completion.`
+          const verifierName = `${config.agent_name}-verification`
+          return `# Verification Reminder (CONTRACT — YOU OWN THE GATE)
+
+You have edited ${editedFilesCount} file(s) in this session. Per the verification contract, an independent adversarial review MUST occur before you report the task complete.
+
+Action required:
+- Launch the **task** tool with subagent_type \`${verifierName}\`. Supply the ORIGINAL user request, the list of changed files, and the implementation approach.
+- Your own checks do NOT substitute for the verifier. You may not self-assign PASS, FAIL, or PARTIAL.
+- On **FAIL**: fix the issue, then resume the verifier with the details of your fix. Iterate until PASS.
+- On **PASS**: spot-check the report — re-run at least ${spotCheckMinCommands} command(s) from the verifier's report and confirm the output matches. If any PASS check lacks a "Command run" block, or the output diverges on replay, resume the verifier with the discrepancy. Do not skip the spot-check.
+- On **PARTIAL**: report what passed and what could not be verified, with reasons.
+
+Do NOT report completion to the user without going through this gate.`
         },
       }),
     ]

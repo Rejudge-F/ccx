@@ -54,7 +54,7 @@ export function createPluginInterface(args: {
   const chatMessageHook = createChatMessageHook(config)
   const sessionWorkflows = createSessionWorkflowsHook({ config, client: ctx.client })
   const chatParamsHook = createChatParamsHook()
-  const compactionHook = createCompactionHook()
+  const compactionHook = createCompactionHook(config)
   const toolDefinitionHook = createToolDefinitionHook(config)
   const messageTransformHook = createMessageTransformHook()
   const idleCompaction = createIdleCompactionHook(config, ctx.client)

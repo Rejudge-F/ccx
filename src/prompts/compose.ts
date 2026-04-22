@@ -5,7 +5,7 @@ import {
   type EnvironmentInfo as EnvInfo,
 } from './environment.js'
 import { getIntroSection } from './intro.js'
-// output-efficiency merged into tone-style
+import { getOutputEfficiencySection } from './output-efficiency.js'
 import { getSystemRulesSection } from './system-rules.js'
 import { getToneStyleSection } from './tone-style.js'
 import {
@@ -13,15 +13,14 @@ import {
   type ToolSectionNames as ToolNames,
 } from './using-tools.js'
 import { createPromptSection, resolvePromptSections } from './section-registry.js'
+import type { OhMyCCAgentConfig } from '../config/schema.js'
 
 const DISABLED_SECTION_ALIASES: Record<string, string> = {
   'system-rules': 'system',
   doing_tasks: 'doing-tasks',
   using_tools: 'using-tools',
-  'tone-style': 'tone-style',
   tone_style: 'tone-style',
-  'output-efficiency': 'tone-style',
-  output_efficiency: 'tone-style',
+  output_efficiency: 'output-efficiency',
 }
 
 function normalizeDisabledSectionIDs(ids: string[] | undefined): string[] {
@@ -36,6 +35,8 @@ export async function composeSystemPrompt(options: {
   env: EnvInfo
   outputStyle?: string
   disabledSectionIDs?: string[]
+  toneStyle?: OhMyCCAgentConfig['tone_style']
+  outputEfficiency?: OhMyCCAgentConfig['output_efficiency']
 }): Promise<string[]> {
   const sections = [
     createPromptSection({
@@ -66,9 +67,13 @@ export async function composeSystemPrompt(options: {
     createPromptSection({
       id: 'tone-style',
       kind: 'static',
-      resolve: () => getToneStyleSection(),
+      resolve: () => getToneStyleSection(options.toneStyle),
     }),
-    // output-efficiency merged into tone-style
+    createPromptSection({
+      id: 'output-efficiency',
+      kind: 'static',
+      resolve: () => getOutputEfficiencySection(options.outputEfficiency),
+    }),
     createPromptSection({
       id: 'environment',
       kind: 'static',

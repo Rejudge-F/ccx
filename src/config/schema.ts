@@ -1,8 +1,8 @@
 import { z } from "zod"
 
 const verificationSchema = z.object({
-  auto_remind: z.boolean().default(false),
-  enforce_contract: z.boolean().default(false),
+  auto_remind: z.boolean().default(true),
+  enforce_contract: z.boolean().default(true),
   min_file_edits: z.int().nonnegative().default(3),
   spot_check_min_commands: z.int().positive().default(2),
 })
@@ -37,6 +37,39 @@ const projectInstructionsSchema = z.object({
 const toolHintsSchema = z.object({
   enabled: z.boolean().default(true),
   disabled_tools: z.array(z.string()).default([]),
+})
+
+const compactionSchema = z.object({
+  // When true, ccx fully replaces the default compaction prompt with a
+  // structured 9-section template (analysis scratchpad + no-tools guard).
+  // When false (legacy), ccx only appends preservation bullets to the context.
+  replace_prompt: z.boolean().default(true),
+  // Enforce a "text only, no tool calls" guard in the compaction prompt.
+  // Only takes effect when replace_prompt is true.
+  no_tools_guard: z.boolean().default(true),
+})
+
+const toneStyleSchema = z.object({
+  // Claude Code reports ~1.2% output-token reduction from explicit numeric
+  // length anchors vs qualitative "be concise" prose. Disable if the anchors
+  // clash with an output style that prefers longer explanations.
+  numeric_length_anchors: z.boolean().default(true),
+  // Cap between-tool narration (words). Final responses may still be longer
+  // when the task genuinely requires more detail.
+  max_words_between_tools: z.int().positive().default(25),
+  // Cap the final user-facing response (words). The anchor is a soft guide;
+  // the prompt tells the model to exceed it only when detail is required.
+  max_words_final_response: z.int().positive().default(100),
+})
+
+const outputEfficiencySchema = z.object({
+  // "prose" = the Claude-Ant-style detailed writing guide (reader-first,
+  //           inverted pyramid, no semantic backtracking). Use when
+  //           user-facing prose quality matters.
+  // "concise" = the external-Claude-Code brief style (lead with action,
+  //             skip filler). Good default.
+  // "off" = omit the section entirely (tone-style alone governs).
+  mode: z.enum(["prose", "concise", "off"]).default("concise"),
 })
 
 const contextBundleSchema = z.object({
@@ -91,8 +124,8 @@ export const configSchema = z.object({
   disabled_hooks: z.array(z.string()).default([]),
   output_style: z.string().min(1).nullable().default(null),
   verification: verificationSchema.default({
-    auto_remind: false,
-    enforce_contract: false,
+    auto_remind: true,
+    enforce_contract: true,
     min_file_edits: 3,
     spot_check_min_commands: 2,
   }),
@@ -119,6 +152,18 @@ export const configSchema = z.object({
   tool_hints: toolHintsSchema.default({
     enabled: true,
     disabled_tools: [],
+  }),
+  compaction: compactionSchema.default({
+    replace_prompt: true,
+    no_tools_guard: true,
+  }),
+  tone_style: toneStyleSchema.default({
+    numeric_length_anchors: true,
+    max_words_between_tools: 25,
+    max_words_final_response: 100,
+  }),
+  output_efficiency: outputEfficiencySchema.default({
+    mode: "concise",
   }),
   subagent_orchestration: subagentOrchestrationSchema.default({
     explore_min_queries: 3,

@@ -80,13 +80,13 @@ function buildSubagentGuidance(config: OhMyCCAgentConfig): string {
   const verificationSection = config.verification.enforce_contract
     ? `## Verification contract
 
-The rule: whenever non-trivial implementation occurs during your turn, an independent adversarial review must take place before you declare completion — whether you wrote the code yourself or a subagent did. You are the gatekeeper. Non-trivial is defined as: 3+ file edits, backend/API changes, or infrastructure changes.
+The contract: when non-trivial implementation happens on your turn, independent adversarial verification must happen before you report completion — regardless of who did the implementing (you directly or a subagent you dispatched). **You are the one reporting to the user; you own the gate.** Non-trivial means: 3+ file edits, backend/API changes, or infrastructure changes.
 
-Launch the **task** tool with subagent_type \`${agentPrefix}-verification\`. Supply the ORIGINAL user task description, the list of changed files, and the approach used. Your own review and commentary do NOT count — only the verification agent assigns a verdict; you may not self-assign PARTIAL.
+Launch the **task** tool with subagent_type \`${agentPrefix}-verification\`. Pass the original user request, all files changed (by anyone), the approach, and the plan file path if applicable. **Your own checks, caveats, and any subagent's self-checks do NOT substitute** — only the verifier assigns a verdict; you cannot self-assign PARTIAL. Flag concerns if you have them but do NOT share test results or claim things work.
 
-- On **FAIL**: address the reported issue, then resume the verifier session with the failure details plus your correction. Iterate until PASS.
-- On **PASS**: perform a spot-check — re-execute at least ${spotCheckMinCommands} commands from the verifier's report and confirm outputs match. If any PASS step lacks a Command run block or the output differs, resume the verifier with the discrepancy.
-- On **PARTIAL**: communicate what passed and what remained unverifiable due to environment constraints.`
+- On **FAIL**: fix the reported issue, then resume the verifier session with the failure details plus your correction. Repeat until PASS.
+- On **PASS**: spot-check it — re-run at least ${spotCheckMinCommands} command(s) from its report, confirm every PASS has a "Command run" block with output that matches your re-run. If any PASS lacks a command block or diverges on replay, resume the verifier with the specifics.
+- On **PARTIAL** (from the verifier): report what passed and what could not be verified.`
     : `## Verification guidance\n\nFor significant implementation changes, prefer independent verification with subagent_type \`${agentPrefix}-verification\` before reporting completion.`
 
   return `# Subagent orchestration
@@ -125,6 +125,8 @@ export function createConfigHook(config: OhMyCCAgentConfig, directory: string) {
       },
       outputStyle: config.output_style ?? undefined,
       disabledSectionIDs: config.disabled_sections,
+      toneStyle: config.tone_style,
+      outputEfficiency: config.output_efficiency,
     })
 
     const subagentGuidance = buildSubagentGuidance(config)
