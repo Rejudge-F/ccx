@@ -39,6 +39,18 @@ function buildToolRestrictions(def: AgentDefinition): Record<string, boolean> | 
   return tools
 }
 
+function buildSubagentModelSettings(
+  config: OhMyCCAgentConfig,
+  def: AgentDefinition,
+): Record<string, unknown> {
+  const settings = config.subagent_orchestration.agents[def.name]
+  if (!settings) return {}
+
+  return Object.fromEntries(
+    Object.entries(settings).filter(([, value]) => value !== undefined),
+  )
+}
+
 function buildSubagentGuidance(config: OhMyCCAgentConfig): string {
   const exploreMinQueries = config.subagent_orchestration.explore_min_queries
   const spotCheckMinCommands = config.verification.spot_check_min_commands
@@ -148,6 +160,7 @@ export function createConfigHook(config: OhMyCCAgentConfig, directory: string) {
         mode: "subagent",
         prompt: def.getSystemPrompt(),
         tools: buildToolRestrictions(def),
+        ...buildSubagentModelSettings(config, def),
       }
     }
 

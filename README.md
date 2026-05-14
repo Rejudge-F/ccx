@@ -340,6 +340,16 @@ Example:
     "explore_min_queries": 3,
     "coordinator_enabled": false,
     "allow_subagent_delegation": false,
+    "agents": {
+      "verification": {
+        "model": "anthropic/claude-sonnet-4-5",
+        "temperature": 0
+      },
+      "explore": {
+        "model": "openai/gpt-5-mini",
+        "temperature": 0.4
+      }
+    },
     "context_bundle": {
       "enabled": true,
       "include_cwd": true,
@@ -387,6 +397,10 @@ Example:
 | `subagent_orchestration.explore_min_queries` | `number` | `3` | Escalate to `ccx-explore` when directed lookup likely needs more than this query count |
 | `subagent_orchestration.coordinator_enabled` | `boolean` | `false` | Register and advertise `ccx-coordinator` subagent |
 | `subagent_orchestration.allow_subagent_delegation` | `boolean` | `false` | Permit subagents to delegate further. When `false`, runtime recursion guard blocks nested `task` delegation from `ccx-*` subagents unless explicit delegation-approval metadata is present |
+| `subagent_orchestration.agents.<name>.model` | `string` | unset | Override a registered ccx subagent model using OpenCode's `provider/model` format, e.g. `anthropic/claude-sonnet-4-5` |
+| `subagent_orchestration.agents.<name>.variant` | `string` | unset | Default model variant for that subagent when using its configured model |
+| `subagent_orchestration.agents.<name>.temperature` | `number` | unset | Override that subagent's temperature; must be non-negative |
+| `subagent_orchestration.agents.<name>.top_p` | `number` | unset | Override that subagent's top-p sampling value; must be between 0 and 1 |
 | `subagent_orchestration.context_bundle.enabled` | `boolean` | `true` | Inject a shared context bundle (cwd, git snapshot, recently changed files) into `task` tool args before execution |
 | `subagent_orchestration.context_bundle.include_cwd` | `boolean` | `true` | Include the working directory in the injected bundle |
 | `subagent_orchestration.context_bundle.include_git` | `boolean` | `true` | Include the per-session git snapshot in the injected bundle |

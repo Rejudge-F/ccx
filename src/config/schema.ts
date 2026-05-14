@@ -90,10 +90,18 @@ const sessionWorkflowsSchema = z.object({
   status_command: z.string().min(1).nullable().default(null),
 })
 
+const subagentModelConfigSchema = z.object({
+  model: z.string().min(1).optional(),
+  variant: z.string().min(1).optional(),
+  temperature: z.number().finite().min(0).optional(),
+  top_p: z.number().finite().min(0).max(1).optional(),
+})
+
 const subagentOrchestrationSchema = z.object({
   explore_min_queries: z.int().positive().default(3),
   coordinator_enabled: z.boolean().default(false),
   allow_subagent_delegation: z.boolean().default(false),
+  agents: z.record(z.string().min(1), subagentModelConfigSchema).default({}),
   context_bundle: contextBundleSchema.default({
     enabled: true,
     include_cwd: true,
@@ -169,6 +177,7 @@ export const configSchema = z.object({
     explore_min_queries: 3,
     coordinator_enabled: false,
     allow_subagent_delegation: false,
+    agents: {},
     context_bundle: {
       enabled: true,
       include_cwd: true,
