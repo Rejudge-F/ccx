@@ -6,7 +6,7 @@ import { promisify } from "node:util"
 
 import type { OhMyCCAgentConfig } from "../config/schema"
 import { getGitSnapshotSection, refreshGitSnapshot } from "./git-context"
-import { listEditedFiles } from "./verification-reminder"
+import { getIncrementalVerificationContext, listEditedFiles } from "./verification-reminder"
 
 const execFileAsync = promisify(execFile)
 
@@ -167,6 +167,15 @@ function formatSessionEditedFiles(sessionID: string | undefined, limit: number):
   return header
 }
 
+function getSubagentType(args: Record<string, unknown>): string {
+  const raw = typeof args.subagent_type === "string"
+    ? args.subagent_type
+    : typeof args.subagentType === "string"
+      ? args.subagentType
+      : ""
+  return raw.toLowerCase()
+}
+
 export function createContextBundleHook(args: {
   config: OhMyCCAgentConfig
   directory: string
@@ -213,6 +222,16 @@ export function createContextBundleHook(args: {
     const editedSummary = formatSessionEditedFiles(sessionID, EDITED_FILES_IN_BUNDLE)
     if (editedSummary) {
       bundleParts.push(editedSummary)
+    }
+
+    const verificationSubagent = `${config.agent_name}-verification`
+    const subagentType = getSubagentType(output.args)
+    const isVerificationTask = subagentType === verificationSubagent || subagentType === "verification"
+    if (sessionID && isVerificationTask) {
+      const incrementalContext = getIncrementalVerificationContext(sessionID)
+      if (incrementalContext) {
+        bundleParts.push(incrementalContext)
+      }
     }
 
     if (bundleParts.length === 0) return
